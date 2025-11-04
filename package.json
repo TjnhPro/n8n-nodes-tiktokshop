@@ -37,20 +37,22 @@
 			"dist/nodes/TikTokShop/TikTokShop.node.js"
 		]
 	},
-	"devDependencies": {
-		"@n8n/node-cli": "*",
-		"@types/node": "^24.10.0",
-		"eslint": "9.32.0",
-		"prettier": "3.6.2",
-		"release-it": "^19.0.4",
-		"typescript": "5.9.2"
-	},
 	"peerDependencies": {
 		"n8n-workflow": "*"
 	},
 	"dependencies": {
 		"axios": "^1.13.1",
+		"form-data": "^4.0.0",
 		"https-proxy-agent": "^7.0.6",
 		"socks-proxy-agent": "^8.0.5"
+	},
+	"devDependencies": {
+		"@n8n/node-cli": "*",
+		"@types/form-data": "^2.5.0",
+		"@types/node": "^24.10.0",
+		"eslint": "9.32.0",
+		"prettier": "3.6.2",
+		"release-it": "^19.0.4",
+		"typescript": "5.9.2"
 	}
 }
