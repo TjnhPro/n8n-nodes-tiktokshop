@@ -8,6 +8,7 @@ Production-ready TikTok Shop nodes for [n8n](https://n8n.io), focused on automat
 - Canonical request builder with TikTok Shop HMAC-SHA256 signatures applied to every outbound call.
 - Seller API helpers for retrieving active shop listings and permission metadata with the same signing pipeline.
 - Product catalog helpers for listing items and retrieving product detail pages without rebuilding TikTok-specific signing.
+- Orders helpers for listing orders, pulling price breakdowns, attaching external OMS references, and fetching batched order details.
 - Logistics helpers for enumerating warehouses, delivery options, and shipping providers without implementing raw HTTP calls.
 - Optional HTTP and SOCKS5 proxy routing, configurable per credential or per node execution.
 - Stateless execution compatible with horizontally scaled n8n self-hosted or cloud clusters.
@@ -46,8 +47,8 @@ These values are read during node initialization and applied across executions.
 ## Usage
 1. Drag the **TikTok Shop** node into your workflow.
 2. Select the credential created above.
-3. Choose the group (`Token`, `Seller`, `Product`, or `Logistics`) and select an operation (e.g. `Access Token`, `Get Active Shops`, `Search Products`, `List Warehouses`, `List Shipping Providers`).
-4. Configure operation-specific parameters. Seller, Product, and Logistics operations require an access token, while token operations rely on refresh or auth codes as inputs. Product search, creation, and deletion require a `Shop Cipher`; search supports optional `Page Size`, `Page Token`, and JSON `Payload` filters, creation requires a product JSON payload, and deletion accepts up to 20 product IDs. `Upload Product Image` expects binary input (set the `Binary Property` name) plus a `Use Case`. Product detail operations also need a `Product ID`, with optional `Shop Cipher` for scoped lookups. Logistics operations require a `Shop Cipher` (except global listings) and, when applicable, a `Warehouse ID` or `Delivery Option ID` to drill into delivery options and shipping providers.
+3. Choose the group (`Token`, `Seller`, `Product`, `Orders`, or `Logistics`) and select an operation (e.g. `Access Token`, `Get Order List`, `Search Products`, `List Warehouses`).
+4. Configure operation-specific parameters. Seller, Product, Orders, and Logistics operations require an access token, while token operations rely on refresh or auth codes as inputs. Orders workflows require a `Shop Cipher` for order searches and external reference batches, enforce up to 100 reference objects per request, include `Order Page Size`/`Order Page Token` pagination inputs, and surface platform aliases (`SHOPIFY`, `WOOCOMMERCE`, `BIGCOMMERCE`, `MAGENTO`, `SALESFORCE_COMMERCE_CLOUD`, `CHANNEL_ADVISOR`, `AMAZON`, `ORDER_MANAGEMENT_SYSTEM`, `WAREHOUSE_MANAGEMENT_SYSTEM`, `ERP_SYSTEM`) for OMS integrations; price detail and external reference lookups also need an `Order ID`, and `Get Order Detail` accepts up to 50 TikTok order IDs. Product search, creation, and deletion require a `Shop Cipher`; search supports optional pagination plus a JSON `Payload`, creation requires a product JSON payload, deletion accepts up to 20 product IDs, and `Upload Product Image` expects binary input (`Binary Property`) plus a `Use Case`. Product detail operations also need a `Product ID`, with optional `Shop Cipher` for scoped lookups. Logistics operations require a `Shop Cipher` (except global listings) and, when applicable, a `Warehouse ID` or `Delivery Option ID` to drill into delivery options and shipping providers.
 5. Execute the workflow. The node signs each request, refreshes tokens when needed, and returns normalized JSON payloads ready for downstream nodes.
 
 ## Development

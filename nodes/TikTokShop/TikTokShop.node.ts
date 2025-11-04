@@ -24,6 +24,11 @@ import {
 	LogisticsService,
 	LogisticsServiceError,
 } from '../../services/logistics-service';
+import {
+	OrdersService,
+	OrdersServiceError,
+	type ExternalOrderReference,
+} from '../../services/orders-service';
 
 export class TikTokShop implements INodeType {
 	description: INodeTypeDescription = {
@@ -36,7 +41,7 @@ export class TikTokShop implements INodeType {
 		version: 1,
 		group: ['input'],
 		description:
-			'Handle TikTok Shop token exchanges, seller insights, product catalog queries, and logistics lookups',
+			'Handle TikTok Shop token exchanges, seller insights, order management, product catalog queries, and logistics lookups',
 		defaults: {
 			name: 'TikTok Shop',
 		},
@@ -60,6 +65,10 @@ export class TikTokShop implements INodeType {
 					{
 						name: 'Product',
 						value: 'product',
+					},
+					{
+						name: 'Orders',
+						value: 'orders',
 					},
 					{
 						name: 'Logistics',
@@ -148,13 +157,57 @@ export class TikTokShop implements INodeType {
 					description: 'Retrieve the details for a specific product',
 				},
 			],
-			default: 'searchProducts',
-			displayOptions: {
-				show: {
-					group: ['product'],
+				default: 'searchProducts',
+				displayOptions: {
+					show: {
+						group: ['product'],
+					},
 				},
 			},
-		},
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				options: [
+					{
+						name: 'Get Order List',
+						value: 'getOrderList',
+						description: 'Search orders for a shop with optional pagination and filters',
+					},
+					{
+						name: 'Get Price Detail',
+						value: 'getPriceDetail',
+						description: 'Retrieve pricing details for a specific order',
+					},
+					{
+						name: 'Add External Order References',
+						value: 'addExternalOrderReferences',
+						description: 'Attach external OMS references to TikTok Shop orders',
+					},
+					{
+						name: 'Get External Order References',
+						value: 'getExternalOrderReferences',
+						description: 'Retrieve external OMS references linked to a TikTok Shop order',
+					},
+					{
+						name: 'Search Order by External Reference',
+						value: 'searchOrderByExternalReference',
+						description: 'Find TikTok Shop orders using an external OMS identifier',
+					},
+					{
+						name: 'Get Order Detail',
+						value: 'getOrderDetail',
+						description: 'Retrieve details for up to 50 TikTok Shop orders',
+					},
+				],
+				default: 'getOrderList',
+				displayOptions: {
+					show: {
+						group: ['orders'],
+					},
+				},
+			},
 		{
 			displayName: 'Operation',
 			name: 'operation',
@@ -197,7 +250,7 @@ export class TikTokShop implements INodeType {
 				required: true,
 				displayOptions: {
 					show: {
-						group: ['token', 'seller', 'product', 'logistics'],
+						group: ['token', 'seller', 'product', 'orders', 'logistics'],
 					},
 				},
 			},
@@ -212,7 +265,7 @@ export class TikTokShop implements INodeType {
 				required: true,
 				displayOptions: {
 					show: {
-						group: ['token', 'seller', 'product', 'logistics'],
+						group: ['token', 'seller', 'product', 'orders', 'logistics'],
 					},
 				},
 			},
@@ -226,7 +279,7 @@ export class TikTokShop implements INodeType {
 					'Override proxy for this execution. Leave empty to rely on credential setting or direct connection.',
 				displayOptions: {
 					show: {
-						group: ['token', 'seller', 'product', 'logistics'],
+						group: ['token', 'seller', 'product', 'orders', 'logistics'],
 					},
 				},
 			},
@@ -239,10 +292,10 @@ export class TikTokShop implements INodeType {
 				},
 				default: '',
 				description:
-					'Access token applied to Seller, Product, and Logistics API requests.',
+					'Access token applied to Seller, Product, Orders, and Logistics API requests.',
 				displayOptions: {
 					show: {
-						group: ['seller', 'product', 'logistics'],
+						group: ['seller', 'product', 'orders', 'logistics'],
 					},
 				},
 			},
@@ -299,15 +352,21 @@ export class TikTokShop implements INodeType {
 			type: 'string',
 			default: '',
 			description:
-				'Shop cipher identifier. Required for product search, creation, deletion, and logistics lookups; optional for product detail lookups.',
+				'Shop cipher identifier. Required for order search and external reference batches, product search/creation/deletion, and most logistics lookups; optional for detail lookups.',
 			displayOptions: {
 				show: {
-					group: ['product', 'logistics'],
+					group: ['product', 'orders', 'logistics'],
 					operation: [
 						'searchProducts',
 						'createProduct',
 						'deleteProducts',
 						'getProductDetail',
+						'getOrderList',
+						'getPriceDetail',
+						'addExternalOrderReferences',
+						'getExternalOrderReferences',
+						'searchOrderByExternalReference',
+						'getOrderDetail',
 						'listWarehouses',
 						'listWarehouseDeliveryOptions',
 						'listShippingProviders',
@@ -454,6 +513,142 @@ export class TikTokShop implements INodeType {
 				},
 			},
 		},
+		{
+			displayName: 'Order Page Size',
+			name: 'orderPageSize',
+			type: 'number',
+			default: 20,
+			typeOptions: {
+				minValue: 1,
+				maxValue: 100,
+			},
+			description:
+				'Number of orders to return per page. TikTok defaults apply when left empty.',
+			displayOptions: {
+				show: {
+					group: ['orders'],
+					operation: ['getOrderList'],
+				},
+			},
+		},
+		{
+			displayName: 'Order Page Token',
+			name: 'orderPageToken',
+			type: 'string',
+			default: '',
+			description:
+				'Use the token supplied by the previous response to continue paging order results.',
+			displayOptions: {
+				show: {
+					group: ['orders'],
+					operation: ['getOrderList'],
+				},
+			},
+		},
+		{
+			displayName: 'Order Payload',
+			name: 'orderPayload',
+			type: 'json',
+			default: '{}',
+			description: 'Additional order search filters expressed as a JSON object.',
+			displayOptions: {
+				show: {
+					group: ['orders'],
+					operation: ['getOrderList'],
+				},
+			},
+		},
+		{
+			displayName: 'Order ID',
+			name: 'orderId',
+			type: 'string',
+			default: '',
+			description:
+				'TikTok Shop order ID to inspect. Required for price detail and external reference retrieval.',
+			displayOptions: {
+				show: {
+					group: ['orders'],
+					operation: ['getPriceDetail', 'getExternalOrderReferences'],
+				},
+			},
+		},
+		{
+			displayName: 'External Order ID',
+			name: 'externalOrderId',
+			type: 'string',
+			default: '',
+			description:
+				'External OMS order identifier used to search TikTok Shop orders.',
+			displayOptions: {
+				show: {
+					group: ['orders'],
+					operation: ['searchOrderByExternalReference'],
+				},
+			},
+		},
+		{
+			displayName: 'Order IDs',
+			name: 'orderIds',
+			type: 'string',
+			default: '',
+			placeholder: 'order1, order2, order3',
+			description:
+				'Comma-separated list of TikTok Shop order IDs (maximum 50 per request).',
+			displayOptions: {
+				show: {
+					group: ['orders'],
+					operation: ['getOrderDetail'],
+				},
+			},
+		},
+		{
+			displayName: 'External Platform',
+			name: 'platform',
+			type: 'options',
+			options: [
+				{ name: 'Not Set', value: '' },
+				{ name: 'Shopify', value: 'SHOPIFY' },
+				{ name: 'WooCommerce', value: 'WOOCOMMERCE' },
+				{ name: 'BigCommerce', value: 'BIGCOMMERCE' },
+				{ name: 'Magento', value: 'MAGENTO' },
+				{ name: 'Salesforce Commerce Cloud', value: 'SALESFORCE_COMMERCE_CLOUD' },
+				{ name: 'ChannelAdvisor', value: 'CHANNEL_ADVISOR' },
+				{ name: 'Amazon', value: 'AMAZON' },
+				{ name: 'Order Management System', value: 'ORDER_MANAGEMENT_SYSTEM' },
+				{ name: 'Warehouse Management System', value: 'WAREHOUSE_MANAGEMENT_SYSTEM' },
+				{ name: 'ERP System', value: 'ERP_SYSTEM' },
+			],
+			default: '',
+			description:
+				'Alias of your external order management system. Leave unset unless an external platform applies.',
+			displayOptions: {
+				show: {
+					group: ['orders'],
+					operation: [
+						'addExternalOrderReferences',
+						'getExternalOrderReferences',
+						'searchOrderByExternalReference',
+					],
+				},
+			},
+		},
+		{
+			displayName: 'External Order References',
+			name: 'references',
+			type: 'json',
+			typeOptions: {
+				alwaysOpenEditWindow: true,
+			},
+			default: '[]',
+			description:
+				'Array of external order reference objects to link (maximum 100 entries).',
+			displayOptions: {
+				show: {
+					group: ['orders'],
+					operation: ['addExternalOrderReferences'],
+				},
+			},
+		},
 		],
 	};
 
@@ -468,6 +663,7 @@ export class TikTokShop implements INodeType {
 				| 'token'
 				| 'seller'
 				| 'product'
+				| 'orders'
 				| 'logistics';
 			const operation = this.getNodeParameter(
 				'operation',
@@ -482,6 +678,12 @@ export class TikTokShop implements INodeType {
 				| 'uploadProductImage'
 				| 'deleteProducts'
 				| 'getProductDetail'
+				| 'getOrderList'
+				| 'getPriceDetail'
+				| 'addExternalOrderReferences'
+				| 'getExternalOrderReferences'
+				| 'searchOrderByExternalReference'
+				| 'getOrderDetail'
 				| 'listWarehouses'
 				| 'listGlobalWarehouses'
 				| 'listWarehouseDeliveryOptions'
@@ -874,6 +1076,387 @@ export class TikTokShop implements INodeType {
 							{ itemIndex },
 						);
 					}
+				} else if (group === 'orders') {
+					const accessTokenValue = this.getNodeParameter(
+						'accessToken',
+						itemIndex,
+						'',
+					) as string;
+					const accessToken = accessTokenValue?.trim() || undefined;
+
+					const ordersService = new OrdersService({
+						appKey: trimmedAppKey,
+						appSecret: trimmedAppSecret,
+						accessToken,
+						proxy,
+					});
+
+					if (operation === 'getOrderList') {
+						const shopCipherValue = this.getNodeParameter(
+							'shopCipher',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedShopCipher = shopCipherValue.trim();
+
+						if (!trimmedShopCipher) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Shop cipher is required for the get order list operation.',
+								{ itemIndex },
+							);
+						}
+
+						const pageSizeValue = this.getNodeParameter(
+							'orderPageSize',
+							itemIndex,
+							undefined,
+						) as number | undefined;
+						const pageTokenValue = this.getNodeParameter(
+							'orderPageToken',
+							itemIndex,
+							'',
+						) as string;
+						const rawOrderPayload = this.getNodeParameter(
+							'orderPayload',
+							itemIndex,
+							{},
+						) as IDataObject | string;
+
+						let orderPayload: IDataObject | undefined;
+
+						if (typeof rawOrderPayload === 'string') {
+							const trimmedPayload = rawOrderPayload.trim();
+
+							if (trimmedPayload) {
+								try {
+									const parsed = JSON.parse(trimmedPayload) as unknown;
+									if (
+										!parsed ||
+										typeof parsed !== 'object' ||
+										Array.isArray(parsed)
+									) {
+										throw new Error('Payload must be a JSON object.');
+									}
+
+									orderPayload = parsed as IDataObject;
+								} catch (error) {
+									throw new NodeOperationError(
+										this.getNode(),
+										`Order payload must be valid JSON: ${
+											error instanceof Error ? error.message : 'Unknown error'
+										}`,
+										{ itemIndex },
+									);
+								}
+							}
+						} else if (Array.isArray(rawOrderPayload)) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Order payload must be provided as a JSON object, not an array.',
+								{ itemIndex },
+							);
+						} else if (
+							rawOrderPayload &&
+							typeof rawOrderPayload === 'object'
+						) {
+							orderPayload = rawOrderPayload as IDataObject;
+						}
+
+						const pageSize =
+							typeof pageSizeValue === 'number' &&
+							Number.isFinite(pageSizeValue)
+								? pageSizeValue
+								: undefined;
+						const pageToken = pageTokenValue?.toString().trim() || undefined;
+
+						result = await ordersService.getOrderList({
+							shopCipher: trimmedShopCipher,
+							pageSize,
+							pageToken,
+							body: orderPayload,
+							accessToken,
+							proxy,
+						});
+					} else if (operation === 'getPriceDetail') {
+						const orderIdValue = this.getNodeParameter(
+							'orderId',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedOrderId = orderIdValue.trim();
+
+						if (!trimmedOrderId) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Order ID is required for the get price detail operation.',
+								{ itemIndex },
+							);
+						}
+
+						const shopCipherValue = this.getNodeParameter(
+							'shopCipher',
+							itemIndex,
+							'',
+						) as string;
+						const shopCipher = shopCipherValue?.trim() || undefined;
+
+						result = await ordersService.getPriceDetail({
+							orderId: trimmedOrderId,
+							shopCipher,
+							accessToken,
+							proxy,
+						});
+					} else if (operation === 'addExternalOrderReferences') {
+						const shopCipherValue = this.getNodeParameter(
+							'shopCipher',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedShopCipher = shopCipherValue.trim();
+
+						if (!trimmedShopCipher) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Shop cipher is required for the add external order references operation.',
+								{ itemIndex },
+							);
+						}
+
+						const platformValue = this.getNodeParameter(
+							'platform',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedPlatform = platformValue?.trim() || '';
+
+						const rawReferences = this.getNodeParameter(
+							'references',
+							itemIndex,
+							'[]',
+						) as IDataObject[] | IDataObject | string;
+
+						let references: IDataObject[] = [];
+
+						if (typeof rawReferences === 'string') {
+							const trimmed = rawReferences.trim();
+
+							if (!trimmed) {
+								throw new NodeOperationError(
+									this.getNode(),
+									'External order references must be provided as a JSON array of objects.',
+									{ itemIndex },
+								);
+							}
+
+							try {
+								const parsed = JSON.parse(trimmed) as unknown;
+								if (!Array.isArray(parsed)) {
+									throw new Error('Payload must be a JSON array.');
+								}
+
+								references = parsed.map((entry, index) => {
+									if (
+										!entry ||
+										typeof entry !== 'object' ||
+										Array.isArray(entry)
+									) {
+										throw new Error(
+											`Reference at index ${index} must be a JSON object.`,
+										);
+									}
+
+									return entry as IDataObject;
+								});
+							} catch (error) {
+								throw new NodeOperationError(
+									this.getNode(),
+									`External order references must be provided as a JSON array of objects: ${
+										error instanceof Error ? error.message : 'Unknown error'
+									}`,
+									{ itemIndex },
+								);
+							}
+						} else if (Array.isArray(rawReferences)) {
+							references = rawReferences.map((entry, index) => {
+								if (
+									!entry ||
+									typeof entry !== 'object' ||
+									Array.isArray(entry)
+								) {
+									throw new NodeOperationError(
+										this.getNode(),
+										`External order references must be objects. Invalid entry at index ${index}.`,
+										{ itemIndex },
+									);
+								}
+
+								return entry as IDataObject;
+							});
+						} else if (
+							rawReferences &&
+							typeof rawReferences === 'object'
+						) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'External order references must be provided as a JSON array of objects.',
+								{ itemIndex },
+							);
+						}
+
+						if (references.length === 0) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'At least one external order reference is required to add references.',
+								{ itemIndex },
+							);
+						}
+
+						if (references.length > 100) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'You can link at most 100 external order references per request.',
+								{ itemIndex },
+							);
+						}
+
+						result = await ordersService.addExternalOrderReferences({
+							shopCipher: trimmedShopCipher,
+							platform: trimmedPlatform || undefined,
+							references: references as ExternalOrderReference[],
+							accessToken,
+							proxy,
+						});
+					} else if (operation === 'getExternalOrderReferences') {
+						const orderIdValue = this.getNodeParameter(
+							'orderId',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedOrderId = orderIdValue.trim();
+
+						if (!trimmedOrderId) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Order ID is required for the get external order references operation.',
+								{ itemIndex },
+							);
+						}
+
+						const shopCipherValue = this.getNodeParameter(
+							'shopCipher',
+							itemIndex,
+							'',
+						) as string;
+						const shopCipher = shopCipherValue?.trim() || undefined;
+
+						const platformValue = this.getNodeParameter(
+							'platform',
+							itemIndex,
+							'',
+						) as string;
+						const platform = platformValue?.trim() || undefined;
+
+						result = await ordersService.getExternalOrderReferences({
+							orderId: trimmedOrderId,
+							platform,
+							shopCipher,
+							accessToken,
+							proxy,
+						});
+					} else if (operation === 'searchOrderByExternalReference') {
+						const platformValue = this.getNodeParameter(
+							'platform',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedPlatform = platformValue?.trim();
+
+						if (!trimmedPlatform) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Platform is required for the search order by external reference operation.',
+								{ itemIndex },
+							);
+						}
+
+						const externalOrderIdValue = this.getNodeParameter(
+							'externalOrderId',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedExternalOrderId = externalOrderIdValue.trim();
+
+						if (!trimmedExternalOrderId) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'External order ID is required for the search order by external reference operation.',
+								{ itemIndex },
+							);
+						}
+
+						const shopCipherValue = this.getNodeParameter(
+							'shopCipher',
+							itemIndex,
+							'',
+						) as string;
+						const shopCipher = shopCipherValue?.trim() || undefined;
+
+						result = await ordersService.searchOrderByExternalReference({
+							platform: trimmedPlatform,
+							externalOrderId: trimmedExternalOrderId,
+							shopCipher,
+							accessToken,
+							proxy,
+						});
+					} else if (operation === 'getOrderDetail') {
+						const orderIdsValue = this.getNodeParameter(
+							'orderIds',
+							itemIndex,
+							'',
+						) as string;
+
+						const orderIds = orderIdsValue
+							.split(/[\s,]+/)
+							.map((id) => id.trim())
+							.filter((id) => Boolean(id));
+
+						if (orderIds.length === 0) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'At least one order ID is required for the get order detail operation.',
+								{ itemIndex },
+							);
+						}
+
+						if (orderIds.length > 50) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'You can retrieve at most 50 order IDs per request.',
+								{ itemIndex },
+							);
+						}
+
+						const shopCipherValue = this.getNodeParameter(
+							'shopCipher',
+							itemIndex,
+							'',
+						) as string;
+						const shopCipher = shopCipherValue?.trim() || undefined;
+
+						result = await ordersService.getOrderDetail({
+							ids: orderIds,
+							shopCipher,
+							accessToken,
+							proxy,
+						});
+					} else {
+						throw new NodeOperationError(
+							this.getNode(),
+							`Unsupported orders operation: ${operation}`,
+							{ itemIndex },
+						);
+					}
 				} else if (group === 'logistics') {
 					const accessTokenValue = this.getNodeParameter(
 						'accessToken',
@@ -1015,6 +1598,8 @@ export class TikTokShop implements INodeType {
 					error instanceof ProductServiceError ? error : undefined;
 				const logisticsError =
 					error instanceof LogisticsServiceError ? error : undefined;
+				const ordersError =
+					error instanceof OrdersServiceError ? error : undefined;
 				const nodeError =
 					error instanceof NodeOperationError
 						? error
@@ -1035,6 +1620,7 @@ export class TikTokShop implements INodeType {
 						tokenError?.status ??
 						sellerError?.status ??
 						productError?.status ??
+						ordersError?.status ??
 						logisticsError?.status;
 
 					if (statusCode !== undefined) {
