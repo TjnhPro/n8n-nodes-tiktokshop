@@ -8,6 +8,7 @@ Production-ready TikTok Shop nodes for [n8n](https://n8n.io), focused on automat
 - Canonical request builder with TikTok Shop HMAC-SHA256 signatures applied to every outbound call.
 - Seller API helpers for retrieving active shop listings and permission metadata with the same signing pipeline.
 - Product catalog helpers for listing items and retrieving product detail pages without rebuilding TikTok-specific signing.
+- Logistics helpers for enumerating warehouses, delivery options, and shipping providers without implementing raw HTTP calls.
 - Optional HTTP and SOCKS5 proxy routing, configurable per credential or per node execution.
 - Stateless execution compatible with horizontally scaled n8n self-hosted or cloud clusters.
 
@@ -45,8 +46,8 @@ These values are read during node initialization and applied across executions.
 ## Usage
 1. Drag the **TikTok Shop** node into your workflow.
 2. Select the credential created above.
-3. Choose the group (`Token`, `Seller`, or `Product`) and select an operation (e.g. `Access Token`, `Get Active Shops`, `Search Products`, `Create Product`, `Upload Product Image`, `Delete Products`, `Get Product Detail`).
-4. Configure operation-specific parameters. Seller and Product operations require an access token, while token operations rely on refresh or auth codes as inputs. Product search, creation, and deletion require a `Shop Cipher`; search supports optional `Page Size`, `Page Token`, and JSON `Payload` filters, creation requires a product JSON payload, and deletion accepts up to 20 product IDs. `Upload Product Image` expects binary input (set the `Binary Property` name) plus a `Use Case`. Product detail operations also need a `Product ID`, with optional `Shop Cipher` for scoped lookups.
+3. Choose the group (`Token`, `Seller`, `Product`, or `Logistics`) and select an operation (e.g. `Access Token`, `Get Active Shops`, `Search Products`, `List Warehouses`, `List Shipping Providers`).
+4. Configure operation-specific parameters. Seller, Product, and Logistics operations require an access token, while token operations rely on refresh or auth codes as inputs. Product search, creation, and deletion require a `Shop Cipher`; search supports optional `Page Size`, `Page Token`, and JSON `Payload` filters, creation requires a product JSON payload, and deletion accepts up to 20 product IDs. `Upload Product Image` expects binary input (set the `Binary Property` name) plus a `Use Case`. Product detail operations also need a `Product ID`, with optional `Shop Cipher` for scoped lookups. Logistics operations require a `Shop Cipher` (except global listings) and, when applicable, a `Warehouse ID` or `Delivery Option ID` to drill into delivery options and shipping providers.
 5. Execute the workflow. The node signs each request, refreshes tokens when needed, and returns normalized JSON payloads ready for downstream nodes.
 
 ## Development
@@ -66,7 +67,11 @@ These values are read during node initialization and applied across executions.
    npm run lint
    npm run typecheck
    ```
-4. Produce a production build:
+4. Run the test suite:
+   ```bash
+   npm run test
+   ```
+5. Produce a production build:
    ```bash
    npm run build
    ```

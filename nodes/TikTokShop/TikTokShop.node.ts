@@ -20,6 +20,10 @@ import {
 	ProductService,
 	ProductServiceError,
 } from '../../services/product-service';
+import {
+	LogisticsService,
+	LogisticsServiceError,
+} from '../../services/logistics-service';
 
 export class TikTokShop implements INodeType {
 	description: INodeTypeDescription = {
@@ -32,7 +36,7 @@ export class TikTokShop implements INodeType {
 		version: 1,
 		group: ['input'],
 		description:
-			'Handle TikTok Shop token exchanges, seller insights, and product catalog queries',
+			'Handle TikTok Shop token exchanges, seller insights, product catalog queries, and logistics lookups',
 		defaults: {
 			name: 'TikTok Shop',
 		},
@@ -56,6 +60,10 @@ export class TikTokShop implements INodeType {
 					{
 						name: 'Product',
 						value: 'product',
+					},
+					{
+						name: 'Logistics',
+						value: 'logistics',
 					},
 				],
 				default: 'token',
@@ -147,6 +155,40 @@ export class TikTokShop implements INodeType {
 				},
 			},
 		},
+		{
+			displayName: 'Operation',
+			name: 'operation',
+			type: 'options',
+			noDataExpression: true,
+			options: [
+				{
+					name: 'List Warehouses',
+					value: 'listWarehouses',
+					description: 'Retrieve the warehouses configured for the seller',
+				},
+				{
+					name: 'List Global Warehouses',
+					value: 'listGlobalWarehouses',
+					description: 'Retrieve the global warehouses available to the seller',
+				},
+				{
+					name: 'List Warehouse Delivery Options',
+					value: 'listWarehouseDeliveryOptions',
+					description: 'Retrieve delivery options for a specific warehouse',
+				},
+				{
+					name: 'List Shipping Providers',
+					value: 'listShippingProviders',
+					description: 'Retrieve shipping providers for a delivery option',
+				},
+			],
+			default: 'listWarehouses',
+			displayOptions: {
+				show: {
+					group: ['logistics'],
+				},
+			},
+		},
 			{
 				displayName: 'App Key',
 				name: 'appKey',
@@ -155,7 +197,7 @@ export class TikTokShop implements INodeType {
 				required: true,
 				displayOptions: {
 					show: {
-						group: ['token', 'seller', 'product'],
+						group: ['token', 'seller', 'product', 'logistics'],
 					},
 				},
 			},
@@ -170,7 +212,7 @@ export class TikTokShop implements INodeType {
 				required: true,
 				displayOptions: {
 					show: {
-						group: ['token', 'seller', 'product'],
+						group: ['token', 'seller', 'product', 'logistics'],
 					},
 				},
 			},
@@ -184,7 +226,7 @@ export class TikTokShop implements INodeType {
 					'Override proxy for this execution. Leave empty to rely on credential setting or direct connection.',
 				displayOptions: {
 					show: {
-						group: ['token', 'seller', 'product'],
+						group: ['token', 'seller', 'product', 'logistics'],
 					},
 				},
 			},
@@ -197,10 +239,10 @@ export class TikTokShop implements INodeType {
 				},
 				default: '',
 				description:
-					'Access token applied to Seller and Product API requests.',
+					'Access token applied to Seller, Product, and Logistics API requests.',
 				displayOptions: {
 					show: {
-						group: ['seller', 'product'],
+						group: ['seller', 'product', 'logistics'],
 					},
 				},
 			},
@@ -257,16 +299,49 @@ export class TikTokShop implements INodeType {
 			type: 'string',
 			default: '',
 			description:
-				'Shop cipher identifier. Required for product search, creation, and deletion; optional for product detail lookups.',
+				'Shop cipher identifier. Required for product search, creation, deletion, and logistics lookups; optional for product detail lookups.',
 			displayOptions: {
 				show: {
-					group: ['product'],
+					group: ['product', 'logistics'],
 					operation: [
 						'searchProducts',
 						'createProduct',
 						'deleteProducts',
 						'getProductDetail',
+						'listWarehouses',
+						'listWarehouseDeliveryOptions',
+						'listShippingProviders',
 					],
+				},
+			},
+		},
+		{
+			displayName: 'Warehouse ID',
+			name: 'warehouseId',
+			type: 'string',
+			default: '',
+			required: true,
+			description:
+				'Unique identifier of the warehouse whose delivery options you want to retrieve.',
+			displayOptions: {
+				show: {
+					group: ['logistics'],
+					operation: ['listWarehouseDeliveryOptions'],
+				},
+			},
+		},
+		{
+			displayName: 'Delivery Option ID',
+			name: 'deliveryOptionId',
+			type: 'string',
+			default: '',
+			required: true,
+			description:
+				'Unique identifier of the delivery option whose shipping providers you want to retrieve.',
+			displayOptions: {
+				show: {
+					group: ['logistics'],
+					operation: ['listShippingProviders'],
 				},
 			},
 		},
@@ -392,7 +467,8 @@ export class TikTokShop implements INodeType {
 			const group = this.getNodeParameter('group', itemIndex) as
 				| 'token'
 				| 'seller'
-				| 'product';
+				| 'product'
+				| 'logistics';
 			const operation = this.getNodeParameter(
 				'operation',
 				itemIndex,
@@ -405,7 +481,11 @@ export class TikTokShop implements INodeType {
 				| 'createProduct'
 				| 'uploadProductImage'
 				| 'deleteProducts'
-				| 'getProductDetail';
+				| 'getProductDetail'
+				| 'listWarehouses'
+				| 'listGlobalWarehouses'
+				| 'listWarehouseDeliveryOptions'
+				| 'listShippingProviders';
 			const appKey = this.getNodeParameter('appKey', itemIndex) as string;
 			const appSecret = this.getNodeParameter('appSecret', itemIndex) as string;
 
@@ -794,6 +874,126 @@ export class TikTokShop implements INodeType {
 							{ itemIndex },
 						);
 					}
+				} else if (group === 'logistics') {
+					const accessTokenValue = this.getNodeParameter(
+						'accessToken',
+						itemIndex,
+						'',
+					) as string;
+					const accessToken = accessTokenValue?.trim() || undefined;
+
+					const logisticsService = new LogisticsService({
+						appKey: trimmedAppKey,
+						appSecret: trimmedAppSecret,
+						accessToken,
+						proxy,
+					});
+
+					if (operation === 'listWarehouses') {
+						const shopCipherValue = this.getNodeParameter(
+							'shopCipher',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedShopCipher = shopCipherValue.trim();
+
+						if (!trimmedShopCipher) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Shop cipher is required for the list warehouses operation.',
+								{ itemIndex },
+							);
+						}
+
+						result = await logisticsService.listWarehouses({
+							shopCipher: trimmedShopCipher,
+							accessToken,
+							proxy,
+						});
+					} else if (operation === 'listGlobalWarehouses') {
+						result = await logisticsService.listGlobalWarehouses({
+							accessToken,
+							proxy,
+						});
+					} else if (operation === 'listWarehouseDeliveryOptions') {
+						const shopCipherValue = this.getNodeParameter(
+							'shopCipher',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedShopCipher = shopCipherValue.trim();
+
+						if (!trimmedShopCipher) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Shop cipher is required for the list warehouse delivery options operation.',
+								{ itemIndex },
+							);
+						}
+
+						const warehouseIdValue = this.getNodeParameter(
+							'warehouseId',
+							itemIndex,
+						) as string;
+						const trimmedWarehouseId = warehouseIdValue.trim();
+
+						if (!trimmedWarehouseId) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Warehouse ID is required for the list warehouse delivery options operation.',
+								{ itemIndex },
+							);
+						}
+
+						result = await logisticsService.listWarehouseDeliveryOptions({
+							warehouseId: trimmedWarehouseId,
+							shopCipher: trimmedShopCipher,
+							accessToken,
+							proxy,
+						});
+					} else if (operation === 'listShippingProviders') {
+						const shopCipherValue = this.getNodeParameter(
+							'shopCipher',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedShopCipher = shopCipherValue.trim();
+
+						if (!trimmedShopCipher) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Shop cipher is required for the list shipping providers operation.',
+								{ itemIndex },
+							);
+						}
+
+						const deliveryOptionIdValue = this.getNodeParameter(
+							'deliveryOptionId',
+							itemIndex,
+						) as string;
+						const trimmedDeliveryOptionId = deliveryOptionIdValue.trim();
+
+						if (!trimmedDeliveryOptionId) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Delivery option ID is required for the list shipping providers operation.',
+								{ itemIndex },
+							);
+						}
+
+						result = await logisticsService.listShippingProviders({
+							deliveryOptionId: trimmedDeliveryOptionId,
+							shopCipher: trimmedShopCipher,
+							accessToken,
+							proxy,
+						});
+					} else {
+						throw new NodeOperationError(
+							this.getNode(),
+							`Unsupported logistics operation: ${operation}`,
+							{ itemIndex },
+						);
+					}
 				} else {
 					throw new NodeOperationError(
 						this.getNode(),
@@ -813,6 +1013,8 @@ export class TikTokShop implements INodeType {
 				const sellerError = error instanceof SellerServiceError ? error : undefined;
 				const productError =
 					error instanceof ProductServiceError ? error : undefined;
+				const logisticsError =
+					error instanceof LogisticsServiceError ? error : undefined;
 				const nodeError =
 					error instanceof NodeOperationError
 						? error
@@ -830,7 +1032,10 @@ export class TikTokShop implements INodeType {
 					};
 
 					const statusCode =
-						tokenError?.status ?? sellerError?.status ?? productError?.status;
+						tokenError?.status ??
+						sellerError?.status ??
+						productError?.status ??
+						logisticsError?.status;
 
 					if (statusCode !== undefined) {
 						errorPayload.status = statusCode;
