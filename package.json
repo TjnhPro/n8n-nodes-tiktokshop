@@ -1,19 +1,20 @@
 {
 	"name": "n8n-nodes-tiktokshop",
 	"version": "0.1.0",
-	"description": "",
+	"description": "Production-ready TikTok Shop nodes for n8n automation.",
 	"license": "MIT",
-	"homepage": "",
+	"homepage": "https://github.com/TjnhPro/n8n-nodes-tiktokshop#readme",
 	"keywords": [
-		"n8n-community-node-package"
+		"n8n-community-node-package",
+		"tiktok",
+		"tiktokshop",
+		"ecommerce",
+		"automation"
 	],
-	"author": {
-		"name": "",
-		"email": ""
-	},
+	"author": "TjnhPro",
 	"repository": {
 		"type": "git",
-		"url": "git clone https://github.com/TjnhPro/n8n-nodes-tiktokshop.git"
+		"url": "git+https://github.com/TjnhPro/n8n-nodes-tiktokshop.git"
 	},
 	"scripts": {
 		"build": "n8n-node build",
@@ -21,6 +22,7 @@
 		"dev": "n8n-node dev",
 		"lint": "n8n-node lint",
 		"lint:fix": "n8n-node lint --fix",
+		"typecheck": "tsc --noEmit",
 		"release": "n8n-node release",
 		"prepublishOnly": "n8n-node prerelease"
 	},
@@ -35,8 +37,7 @@
 			"dist/credentials/GithubIssuesOAuth2Api.credentials.js"
 		],
 		"nodes": [
-			"dist/nodes/GithubIssues/GithubIssues.node.js",
-			"dist/nodes/Example/Example.node.js"
+			"dist/nodes/GithubIssues/GithubIssues.node.js"
 		]
 	},
 	"devDependencies": {
