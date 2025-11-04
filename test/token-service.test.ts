@@ -16,8 +16,11 @@ import {
 	AUTH_BASE_URL,
 	TokenService,
 	TokenServiceError,
-	createProxyAgent,
 } from '../services/token-service';
+import {
+	ProxyConfigurationError,
+	createProxyAgent,
+} from '../services/proxy-agent';
 
 describe('TokenService', () => {
 	beforeAll(() => {
@@ -236,7 +239,7 @@ describe('createProxyAgent', () => {
 
 	it('throws for unsupported protocols', () => {
 		expect(() => createProxyAgent('ftp://proxy')).toThrow(
-			TokenServiceError,
+			ProxyConfigurationError,
 		);
 	});
 });

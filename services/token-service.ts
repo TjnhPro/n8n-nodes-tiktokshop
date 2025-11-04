@@ -5,8 +5,8 @@ import axios, {
 } from 'axios';
 import type { Agent as HttpAgent } from 'node:http';
 import type { Agent as HttpsAgent } from 'node:https';
-import { HttpsProxyAgent } from 'https-proxy-agent';
-import { SocksProxyAgent } from 'socks-proxy-agent';
+
+import { createProxyAgent } from './proxy-agent';
 
 export const AUTH_BASE_URL = 'https://auth.tiktok-shops.com';
 const ACCESS_TOKEN_PATH = '/api/v2/token/get';
@@ -48,29 +48,6 @@ export class TokenServiceError extends Error {
 		this.status = details.status;
 		this.data = details.data;
 	}
-}
-
-export type ProxyAgent = HttpAgent | HttpsAgent;
-
-export function createProxyAgent(proxy?: string): ProxyAgent | undefined {
-	if (!proxy || !proxy.trim()) {
-		return undefined;
-	}
-
-	const normalized = proxy.trim();
-	const lowered = normalized.toLowerCase();
-
-	if (lowered.startsWith('http')) {
-		return new HttpsProxyAgent(normalized);
-	}
-
-	if (lowered.startsWith('socks5')) {
-		return new SocksProxyAgent(normalized);
-	}
-
-	throw new TokenServiceError(
-		`Unsupported proxy protocol for value "${proxy}". Expected empty, http*, or socks5*.`,
-	);
 }
 
 export class TokenService {
