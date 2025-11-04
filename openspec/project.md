@@ -17,8 +17,6 @@ The n8n-nodes-tiktokshop package ships a production-ready n8n node that bridges 
 - Axios for HTTP transport, extended with interceptors for signing, retries, and telemetry.
 - `socks-proxy-agent` and `https-proxy-agent` for per-request proxy configuration.
 - Node.js `crypto` module for HMAC-SHA256 signature generation.
-- Jest or Vitest for unit tests with ts-jest or ts-node integration.
-- Nock (or MSW) for HTTP mocking in integration tests.
 - ESLint and Prettier for linting and formatting.
 
 ## Project Conventions
@@ -35,7 +33,6 @@ The n8n-nodes-tiktokshop package ships a production-ready n8n node that bridges 
 - `services/` encapsulates domain logic such as `TokenService` (token lifecycle) and `TikTokService` (signed API client).
 - `credentials/` contains n8n credential type definitions for TikTok Shop authentication.
 - `utils/` exposes shared helpers (signing utilities, proxy agent factory, time normalization).
-- `test/` mirrors the runtime structure for unit and integration coverage.
 - `scripts/` (optional) provides release, build, and validation automation.
 
 ### Architecture Patterns
@@ -57,18 +54,15 @@ The n8n-nodes-tiktokshop package ships a production-ready n8n node that bridges 
 - Time synchronization relies on host clock accuracy; document the need for NTP on production hosts.
 
 ## Testing Strategy
-- Unit tests cover token refresh flow, signature generation, proxy agent selection, and error parsing.
-- Component tests exercise node execution paths within the n8n testing harness.
-- Integration tests target the TikTok Shop sandbox when credentials are available, otherwise rely on mocked servers.
-- Snapshot tests are discouraged; prefer explicit assertions for stability.
-- CI executes `npm run lint`, `npm run typecheck`, and `npm test` on every pull request.
+- Automated test suites are not maintained. Validation relies on manual checking, targeted logging, and ad-hoc scripts when required.
+- CI executes `npm run lint` and `npm run typecheck` on every pull request.
 
 ## Release and Git Workflow
 - Branching: `main` (release), `develop` (integration), `feature/*` and `fix/*` for ongoing work.
 - Conventional Commits enforced via commitlint and Husky pre-commit hooks.
 - Pull requests require at least one reviewer approval and a passing CI pipeline.
 - Semantic versioning for npm releases; package published under an `@n8n-extended/tiktokshop` scope (placeholder).
-- GitHub Actions pipeline runs lint, test, type check, and bundles the node before publishing.
+- GitHub Actions pipeline runs lint, type check, and bundles the node before publishing.
 
 ## Domain Context
 - TikTok Shop OpenAPI signature: `sign = HMAC_SHA256(app_secret, app_secret + pathname + sorted(params) + body + app_secret)`.
@@ -87,4 +81,3 @@ The n8n-nodes-tiktokshop package ships a production-ready n8n node that bridges 
 - TikTok Shop OpenAPI v2 docs: https://developers.tiktok-shops.com/doc
 - n8n community node guidelines: https://docs.n8n.io/integrations/creating-nodes/
 - Axios, socks-proxy-agent, https-proxy-agent npm packages.
-- Jest, Vitest, and Nock (or MSW) for automated testing.

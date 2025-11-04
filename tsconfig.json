@@ -27,6 +27,5 @@
 		"services/**/*",
 		"nodes/**/*.json",
 		"package.json"
-	],
-	"exclude": ["test/**/*"]
+	]
 }

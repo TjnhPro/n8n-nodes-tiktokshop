@@ -12,6 +12,10 @@ import {
 	TokenService,
 	TokenServiceError,
 } from '../../services/token-service';
+import {
+	SellerService,
+	SellerServiceError,
+} from '../../services/seller-service';
 
 export class TikTokShop implements INodeType {
 	description: INodeTypeDescription = {
@@ -23,7 +27,7 @@ export class TikTokShop implements INodeType {
 		},
 		version: 1,
 		group: ['input'],
-		description: 'Handle TikTok Shop token exchanges',
+		description: 'Handle TikTok Shop token exchanges and seller data',
 		defaults: {
 			name: 'TikTok Shop',
 		},
@@ -39,6 +43,10 @@ export class TikTokShop implements INodeType {
 					{
 						name: 'Token',
 						value: 'token',
+					},
+					{
+						name: 'Seller',
+						value: 'seller',
 					},
 				],
 				default: 'token',
@@ -68,6 +76,30 @@ export class TikTokShop implements INodeType {
 				},
 			},
 			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				options: [
+					{
+						name: 'Get Active Shops',
+						value: 'getActiveShops',
+						description: 'List active shops for the current seller',
+					},
+					{
+						name: 'Get Seller Permissions',
+						value: 'getSellerPermissions',
+						description: 'Retrieve the seller permissions granted to the current account',
+					},
+				],
+				default: 'getActiveShops',
+				displayOptions: {
+					show: {
+						group: ['seller'],
+					},
+				},
+			},
+			{
 				displayName: 'App Key',
 				name: 'appKey',
 				type: 'string',
@@ -75,7 +107,7 @@ export class TikTokShop implements INodeType {
 				required: true,
 				displayOptions: {
 					show: {
-						group: ['token'],
+						group: ['token', 'seller'],
 					},
 				},
 			},
@@ -90,7 +122,7 @@ export class TikTokShop implements INodeType {
 				required: true,
 				displayOptions: {
 					show: {
-						group: ['token'],
+						group: ['token', 'seller'],
 					},
 				},
 			},
@@ -104,7 +136,22 @@ export class TikTokShop implements INodeType {
 					'Override proxy for this execution. Leave empty to rely on credential setting or direct connection.',
 				displayOptions: {
 					show: {
-						group: ['token'],
+						group: ['token', 'seller'],
+					},
+				},
+			},
+			{
+				displayName: 'Access Token',
+				name: 'accessToken',
+				type: 'string',
+				typeOptions: {
+					password: true,
+				},
+				default: '',
+				description: 'Access token applied to seller API requests.',
+				displayOptions: {
+					show: {
+						group: ['seller'],
 					},
 				},
 			},
@@ -151,12 +198,19 @@ export class TikTokShop implements INodeType {
 		const tokenService = new TokenService();
 
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
-			const appKey = this.getNodeParameter('appKey', itemIndex) as string;
-			const appSecret = this.getNodeParameter('appSecret', itemIndex) as string;
+			const group = this.getNodeParameter('group', itemIndex) as
+				| 'token'
+				| 'seller';
 			const operation = this.getNodeParameter(
 				'operation',
 				itemIndex,
-			) as 'accessToken' | 'refreshToken';
+			) as
+				| 'accessToken'
+				| 'refreshToken'
+				| 'getActiveShops'
+				| 'getSellerPermissions';
+			const appKey = this.getNodeParameter('appKey', itemIndex) as string;
+			const appSecret = this.getNodeParameter('appSecret', itemIndex) as string;
 
 			const proxyOverride = this.getNodeParameter(
 				'proxy',
@@ -166,48 +220,103 @@ export class TikTokShop implements INodeType {
 			const proxy = proxyOverride?.trim() || undefined;
 
 			try {
+				const trimmedAppKey = appKey.trim();
+				const trimmedAppSecret = appSecret.trim();
+
+				if (!trimmedAppKey) {
+					throw new NodeOperationError(
+						this.getNode(),
+						'App key is required for the selected operation.',
+						{ itemIndex },
+					);
+				}
+
+				if (!trimmedAppSecret) {
+					throw new NodeOperationError(
+						this.getNode(),
+						'App secret is required for the selected operation.',
+						{ itemIndex },
+					);
+				}
+
 				let result: Record<string, unknown>;
 
-				if (operation === 'accessToken') {
-					const refreshTokenValue = this.getNodeParameter(
-						'refreshToken',
-						itemIndex,
-					) as string;
+				if (group === 'token') {
+					if (operation === 'accessToken') {
+						const refreshTokenValue = this.getNodeParameter(
+							'refreshToken',
+							itemIndex,
+						) as string;
+						const trimmedRefreshToken = refreshTokenValue?.trim();
 
-					if (!refreshTokenValue) {
+						if (!trimmedRefreshToken) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Refresh token is required for the access token operation.',
+								{ itemIndex },
+							);
+						}
+
+						result = await tokenService.refreshToken({
+							appKey: trimmedAppKey,
+							appSecret: trimmedAppSecret,
+							refreshToken: trimmedRefreshToken,
+							proxy,
+						});
+					} else if (operation === 'refreshToken') {
+						const authCode = this.getNodeParameter(
+							'authCode',
+							itemIndex,
+						) as string;
+						const trimmedAuthCode = authCode?.trim();
+
+						if (!trimmedAuthCode) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Authorization code is required for the refresh token operation.',
+								{ itemIndex },
+							);
+						}
+
+						result = await tokenService.accessToken({
+							appKey: trimmedAppKey,
+							appSecret: trimmedAppSecret,
+							authCode: trimmedAuthCode,
+							proxy,
+						});
+					} else {
 						throw new NodeOperationError(
 							this.getNode(),
-							'Refresh token is required for the access token operation.',
+							`Unsupported token operation: ${operation}`,
 							{ itemIndex },
 						);
 					}
-
-					result = await tokenService.refreshToken({
-						appKey,
-						appSecret,
-						refreshToken: refreshTokenValue,
-						proxy,
-					});
 				} else {
-					const authCode = this.getNodeParameter(
-						'authCode',
+					const accessTokenValue = this.getNodeParameter(
+						'accessToken',
 						itemIndex,
+						'',
 					) as string;
+					const accessToken = accessTokenValue?.trim() || undefined;
 
-					if (!authCode) {
+					const sellerService = new SellerService({
+						appKey: trimmedAppKey,
+						appSecret: trimmedAppSecret,
+						accessToken,
+						proxy,
+					});
+
+					if (operation === 'getActiveShops') {
+						result = await sellerService.getActiveShops();
+					} else if (operation === 'getSellerPermissions') {
+						result = await sellerService.getSellerPermissions();
+					} else {
 						throw new NodeOperationError(
 							this.getNode(),
-							'Authorization code is required for the refresh token operation.',
+							`Unsupported seller operation: ${operation}`,
 							{ itemIndex },
 						);
 					}
-
-					result = await tokenService.accessToken({
-						appKey,
-						appSecret,
-						authCode,
-						proxy,
-					});
 				}
 
 				const output = result as IDataObject;
@@ -218,6 +327,7 @@ export class TikTokShop implements INodeType {
 				});
 			} catch (error) {
 				const tokenError = error instanceof TokenServiceError ? error : undefined;
+				const sellerError = error instanceof SellerServiceError ? error : undefined;
 				const nodeError =
 					error instanceof NodeOperationError
 						? error
@@ -234,8 +344,11 @@ export class TikTokShop implements INodeType {
 						error: nodeError.message,
 					};
 
-					if (tokenError?.status) {
-						errorPayload.status = tokenError.status;
+					const statusCode =
+						tokenError?.status ?? sellerError?.status;
+
+					if (statusCode !== undefined) {
+						errorPayload.status = statusCode;
 					}
 
 					returnData.push({
@@ -252,3 +365,4 @@ export class TikTokShop implements INodeType {
 		return [returnData];
 	}
 }
+

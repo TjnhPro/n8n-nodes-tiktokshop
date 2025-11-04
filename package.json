@@ -22,7 +22,6 @@
 		"dev": "n8n-node dev",
 		"lint": "n8n-node lint",
 		"lint:fix": "n8n-node lint --fix",
-		"test": "vitest run",
 		"typecheck": "tsc --noEmit",
 		"release": "n8n-node release",
 		"prepublishOnly": "n8n-node prerelease"
@@ -42,11 +41,9 @@
 		"@n8n/node-cli": "*",
 		"@types/node": "^24.10.0",
 		"eslint": "9.32.0",
-		"nock": "^14.0.10",
 		"prettier": "3.6.2",
 		"release-it": "^19.0.4",
-		"typescript": "5.9.2",
-		"vitest": "^4.0.6"
+		"typescript": "5.9.2"
 	},
 	"peerDependencies": {
 		"n8n-workflow": "*"

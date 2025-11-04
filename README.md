@@ -1,11 +1,12 @@
 # n8n-nodes-tiktokshop
 
-Production-ready TikTok Shop nodes for [n8n](https://n8n.io), focused on automating catalog, order, and fulfillment workflows without rebuilding authentication, signing, or proxy logic.
+Production-ready TikTok Shop nodes for [n8n](https://n8n.io), focused on automating seller operations, catalog, order, and fulfillment workflows without rebuilding authentication, signing, or proxy logic.
 
 ## Features
 - Multi-tenant credential storage (app key, app secret, access token, refresh token) per workflow execution.
 - Automatic token refresh with refreshed values persisted back to the linked n8n credentials.
 - Canonical request builder with TikTok Shop HMAC-SHA256 signatures applied to every outbound call.
+- Seller API helpers for retrieving active shop listings and permission metadata with the same signing pipeline.
 - Optional HTTP and SOCKS5 proxy routing, configurable per credential or per node execution.
 - Stateless execution compatible with horizontally scaled n8n self-hosted or cloud clusters.
 
@@ -43,8 +44,8 @@ These values are read during node initialization and applied across executions.
 ## Usage
 1. Drag the **TikTok Shop** node into your workflow.
 2. Select the credential created above.
-3. Choose the operation (for example, `List Orders`, `Get Product`, `Update Inventory`).
-4. Configure operation-specific parameters. The node validates required fields and handles pagination automatically.
+3. Choose the group (`Token` or `Seller`) and select an operation (`Access Token`, `Refresh Token`, `Get Active Shops`, `Get Seller Permissions`).
+4. Configure operation-specific parameters. Seller operations require an access token, while token operations rely on refresh or auth codes as inputs.
 5. Execute the workflow. The node signs each request, refreshes tokens when needed, and returns normalized JSON payloads ready for downstream nodes.
 
 ## Development
@@ -69,13 +70,6 @@ These values are read during node initialization and applied across executions.
    npm run build
    ```
 
-### Testing
-Unit and integration tests target token refresh flow, signature generation, proxy resolution, and error handling. Add new tests under `test/` and run them with:
-```bash
-npm test
-```
-Mock external HTTP calls using Nock or MSW when sandbox credentials are unavailable.
-
 ## Releasing
 1. Update the changelog and bump the version in `package.json`.
 2. Run the release pipeline:
@@ -95,7 +89,8 @@ Mock external HTTP calls using Nock or MSW when sandbox credentials are unavaila
 - **Proxy issues**: Verify proxy host, port, and authentication. The node falls back to direct requests only when the credential allows it.
 
 ## Contributing
-Issues and pull requests are welcome. Please run `npm run lint`, `npm run typecheck`, and provide relevant tests before submitting contributions.
+Issues and pull requests are welcome. Please run `npm run lint` and `npm run typecheck` before submitting contributions.
 
 ## License
 MIT (c) TjnhPro
+

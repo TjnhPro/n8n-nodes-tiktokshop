@@ -103,7 +103,7 @@ export class BaseService {
 		}
 
 		const resolvedAccessToken =
-			accessToken ?? rest.accessToken ?? this.defaultAccessToken;
+			accessToken ?? this.defaultAccessToken;
 
 		const mergedQuery: Record<string, unknown> = {
 			...(rest.query ?? {}),
