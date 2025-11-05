@@ -25,6 +25,12 @@ import {
 	LogisticsServiceError,
 } from '../../services/logistics-service';
 import {
+	FulfillmentsService,
+	FulfillmentsServiceError,
+	SHIPPING_DOCUMENT_TYPES,
+	type ShippingDocumentType,
+} from '../../services/fulfillments-service';
+import {
 	OrdersService,
 	OrdersServiceError,
 	type ExternalOrderReference,
@@ -73,6 +79,10 @@ export class TikTokShop implements INodeType {
 					{
 						name: 'Logistics',
 						value: 'logistics',
+					},
+					{
+						name: 'Fulfillments',
+						value: 'fulfillments',
 					},
 				],
 				default: 'token',
@@ -242,6 +252,35 @@ export class TikTokShop implements INodeType {
 				},
 			},
 		},
+		{
+			displayName: 'Operation',
+			name: 'operation',
+			type: 'options',
+			noDataExpression: true,
+			options: [
+				{
+					name: 'Create Packages',
+					value: 'createPackages',
+					description: 'Create fulfillment packages for an order or shipment',
+				},
+				{
+					name: 'Ship Package',
+					value: 'shipPackage',
+					description: 'Mark a package as shipped and provide shipment details',
+				},
+				{
+					name: 'Get Package Shipping Document',
+					value: 'getPackageShippingDocument',
+					description: 'Download labels or documents generated for a package',
+				},
+			],
+			default: 'createPackages',
+			displayOptions: {
+				show: {
+					group: ['fulfillments'],
+				},
+			},
+		},
 			{
 				displayName: 'App Key',
 				name: 'appKey',
@@ -250,7 +289,7 @@ export class TikTokShop implements INodeType {
 				required: true,
 				displayOptions: {
 					show: {
-						group: ['token', 'seller', 'product', 'orders', 'logistics'],
+						group: ['token', 'seller', 'product', 'orders', 'logistics', 'fulfillments'],
 					},
 				},
 			},
@@ -265,7 +304,7 @@ export class TikTokShop implements INodeType {
 				required: true,
 				displayOptions: {
 					show: {
-						group: ['token', 'seller', 'product', 'orders', 'logistics'],
+						group: ['token', 'seller', 'product', 'orders', 'logistics', 'fulfillments'],
 					},
 				},
 			},
@@ -279,7 +318,7 @@ export class TikTokShop implements INodeType {
 					'Override proxy for this execution. Leave empty to rely on credential setting or direct connection.',
 				displayOptions: {
 					show: {
-						group: ['token', 'seller', 'product', 'orders', 'logistics'],
+						group: ['token', 'seller', 'product', 'orders', 'logistics', 'fulfillments'],
 					},
 				},
 			},
@@ -292,10 +331,10 @@ export class TikTokShop implements INodeType {
 				},
 				default: '',
 				description:
-					'Access token applied to Seller, Product, Orders, and Logistics API requests.',
+					'Access token applied to Seller, Product, Orders, Logistics, and Fulfillments API requests.',
 				displayOptions: {
 					show: {
-						group: ['seller', 'product', 'orders', 'logistics'],
+						group: ['seller', 'product', 'orders', 'logistics', 'fulfillments'],
 					},
 				},
 			},
@@ -352,10 +391,10 @@ export class TikTokShop implements INodeType {
 			type: 'string',
 			default: '',
 			description:
-				'Shop cipher identifier. Required for order search and external reference batches, product search/creation/deletion, and most logistics lookups; optional for detail lookups.',
+				'Shop cipher identifier. Required for fulfillments, order search and external reference batches, product search/creation/deletion, and most logistics lookups; optional for detail lookups.',
 			displayOptions: {
 				show: {
-					group: ['product', 'orders', 'logistics'],
+					group: ['product', 'orders', 'logistics', 'fulfillments'],
 					operation: [
 						'searchProducts',
 						'createProduct',
@@ -370,6 +409,9 @@ export class TikTokShop implements INodeType {
 						'listWarehouses',
 						'listWarehouseDeliveryOptions',
 						'listShippingProviders',
+						'createPackages',
+						'shipPackage',
+						'getPackageShippingDocument',
 					],
 				},
 			},
@@ -401,6 +443,79 @@ export class TikTokShop implements INodeType {
 				show: {
 					group: ['logistics'],
 					operation: ['listShippingProviders'],
+				},
+			},
+		},
+		{
+			displayName: 'Package ID',
+			name: 'packageId',
+			type: 'string',
+			default: '',
+			required: true,
+			description: 'Identifier of the package to ship or download documents for.',
+			displayOptions: {
+				show: {
+					group: ['fulfillments'],
+					operation: ['shipPackage', 'getPackageShippingDocument'],
+				},
+			},
+		},
+		{
+			displayName: 'Package Payload',
+			name: 'packagePayload',
+			type: 'json',
+			typeOptions: {
+				alwaysOpenEditWindow: true,
+			},
+			default: '{}',
+			description:
+				'JSON object describing the packages to create. Refer to TikTok documentation for required fields.',
+			displayOptions: {
+				show: {
+					group: ['fulfillments'],
+					operation: ['createPackages'],
+				},
+			},
+		},
+		{
+			displayName: 'Shipment Payload',
+			name: 'shipmentPayload',
+			type: 'json',
+			typeOptions: {
+				alwaysOpenEditWindow: true,
+			},
+			default: '{}',
+			description:
+				'JSON object describing the shipment details for the package you are shipping.',
+			displayOptions: {
+				show: {
+					group: ['fulfillments'],
+					operation: ['shipPackage'],
+				},
+			},
+		},
+		{
+			displayName: 'Document Type',
+			name: 'documentType',
+			type: 'options',
+			options: [
+				{ name: 'Shipping Label (PDF)', value: 'SHIPPING_LABEL' },
+				{ name: 'Packing Slip (PDF)', value: 'PACKING_SLIP' },
+				{
+					name: 'Shipping Label + Packing Slip (PDF)',
+					value: 'SHIPPING_LABEL_AND_PACKING_SLIP',
+				},
+				{ name: 'Shipping Label Picture (PNG)', value: 'SHIPPING_LABEL_PICTURE' },
+				{ name: 'Hazmat Label (PDF)', value: 'HAZMAT_LABEL' },
+				{ name: 'Invoice Label (Brazil, PDF A6)', value: 'INVOICE_LABEL' },
+			],
+			default: '',
+			description:
+				'Optional document type to download. Leave empty for the default shipping label PDF.',
+			displayOptions: {
+				show: {
+					group: ['fulfillments'],
+					operation: ['getPackageShippingDocument'],
 				},
 			},
 		},
@@ -664,7 +779,8 @@ export class TikTokShop implements INodeType {
 				| 'seller'
 				| 'product'
 				| 'orders'
-				| 'logistics';
+				| 'logistics'
+				| 'fulfillments';
 			const operation = this.getNodeParameter(
 				'operation',
 				itemIndex,
@@ -687,7 +803,10 @@ export class TikTokShop implements INodeType {
 				| 'listWarehouses'
 				| 'listGlobalWarehouses'
 				| 'listWarehouseDeliveryOptions'
-				| 'listShippingProviders';
+				| 'listShippingProviders'
+				| 'createPackages'
+				| 'shipPackage'
+				| 'getPackageShippingDocument';
 			const appKey = this.getNodeParameter('appKey', itemIndex) as string;
 			const appSecret = this.getNodeParameter('appSecret', itemIndex) as string;
 
@@ -1577,6 +1696,260 @@ export class TikTokShop implements INodeType {
 							{ itemIndex },
 						);
 					}
+				} else if (group === 'fulfillments') {
+					const accessTokenValue = this.getNodeParameter(
+						'accessToken',
+						itemIndex,
+						'',
+					) as string;
+					const accessToken = accessTokenValue?.trim() || undefined;
+
+					const fulfillmentsService = new FulfillmentsService({
+						appKey: trimmedAppKey,
+						appSecret: trimmedAppSecret,
+						accessToken,
+						proxy,
+					});
+
+					if (operation === 'createPackages') {
+						const shopCipherValue = this.getNodeParameter(
+							'shopCipher',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedShopCipher = shopCipherValue.trim();
+
+						if (!trimmedShopCipher) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Shop cipher is required for the create packages operation.',
+								{ itemIndex },
+							);
+						}
+
+						const rawPayload = this.getNodeParameter(
+							'packagePayload',
+							itemIndex,
+							{},
+						) as IDataObject | string;
+
+						let body: IDataObject | undefined;
+
+						if (typeof rawPayload === 'string') {
+							const trimmedPayload = rawPayload.trim();
+
+							if (!trimmedPayload) {
+								throw new NodeOperationError(
+									this.getNode(),
+									'Package payload must be provided as a non-empty JSON object.',
+									{ itemIndex },
+								);
+							}
+
+							try {
+								const parsed = JSON.parse(trimmedPayload) as unknown;
+								if (
+									!parsed ||
+									typeof parsed !== 'object' ||
+									Array.isArray(parsed)
+								) {
+									throw new Error('Payload must be a JSON object.');
+								}
+
+								body = parsed as IDataObject;
+							} catch (error) {
+								throw new NodeOperationError(
+									this.getNode(),
+									`Package payload must be valid JSON: ${
+										error instanceof Error ? error.message : 'Unknown error'
+									}`,
+									{ itemIndex },
+								);
+							}
+						} else {
+							body = rawPayload as IDataObject;
+						}
+
+						if (
+							!body ||
+							typeof body !== 'object' ||
+							Array.isArray(body) ||
+							Object.keys(body).length === 0
+						) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Package payload must include at least one field.',
+								{ itemIndex },
+							);
+						}
+
+						result = (await fulfillmentsService.createPackages({
+							shopCipher: trimmedShopCipher,
+							body,
+							accessToken,
+							proxy,
+						})) as Record<string, unknown>;
+					} else if (operation === 'shipPackage') {
+						const packageIdValue = this.getNodeParameter(
+							'packageId',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedPackageId = packageIdValue.trim();
+
+						if (!trimmedPackageId) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Package ID is required for the ship package operation.',
+								{ itemIndex },
+							);
+						}
+
+						const shopCipherValue = this.getNodeParameter(
+							'shopCipher',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedShopCipher = shopCipherValue.trim();
+
+						if (!trimmedShopCipher) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Shop cipher is required for the ship package operation.',
+								{ itemIndex },
+							);
+						}
+
+						const rawShipmentPayload = this.getNodeParameter(
+							'shipmentPayload',
+							itemIndex,
+							{},
+						) as IDataObject | string;
+
+						let shipmentBody: IDataObject | undefined;
+
+						if (typeof rawShipmentPayload === 'string') {
+							const trimmedPayload = rawShipmentPayload.trim();
+
+							if (!trimmedPayload) {
+								throw new NodeOperationError(
+									this.getNode(),
+									'Shipment payload must be provided as a non-empty JSON object.',
+									{ itemIndex },
+								);
+							}
+
+							try {
+								const parsed = JSON.parse(trimmedPayload) as unknown;
+								if (
+									!parsed ||
+									typeof parsed !== 'object' ||
+									Array.isArray(parsed)
+								) {
+									throw new Error('Payload must be a JSON object.');
+								}
+
+								shipmentBody = parsed as IDataObject;
+							} catch (error) {
+								throw new NodeOperationError(
+									this.getNode(),
+									`Shipment payload must be valid JSON: ${
+										error instanceof Error ? error.message : 'Unknown error'
+									}`,
+									{ itemIndex },
+								);
+							}
+						} else {
+							shipmentBody = rawShipmentPayload as IDataObject;
+						}
+
+						if (
+							!shipmentBody ||
+							typeof shipmentBody !== 'object' ||
+							Array.isArray(shipmentBody) ||
+							Object.keys(shipmentBody).length === 0
+						) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Shipment payload must include at least one field.',
+								{ itemIndex },
+							);
+						}
+
+						result = (await fulfillmentsService.shipPackage({
+							packageId: trimmedPackageId,
+							shopCipher: trimmedShopCipher,
+							body: shipmentBody,
+							accessToken,
+							proxy,
+						})) as Record<string, unknown>;
+					} else if (operation === 'getPackageShippingDocument') {
+						const packageIdValue = this.getNodeParameter(
+							'packageId',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedPackageId = packageIdValue.trim();
+
+						if (!trimmedPackageId) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Package ID is required for the get package shipping document operation.',
+								{ itemIndex },
+							);
+						}
+
+						const shopCipherValue = this.getNodeParameter(
+							'shopCipher',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedShopCipher = shopCipherValue.trim();
+
+						if (!trimmedShopCipher) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Shop cipher is required for the get package shipping document operation.',
+								{ itemIndex },
+							);
+						}
+
+						const documentTypeValue = this.getNodeParameter(
+							'documentType',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedDocumentType = documentTypeValue.trim();
+
+						if (
+							trimmedDocumentType &&
+							!SHIPPING_DOCUMENT_TYPES.includes(
+								trimmedDocumentType as ShippingDocumentType,
+							)
+						) {
+							throw new NodeOperationError(
+								this.getNode(),
+								`Document type must be one of: ${SHIPPING_DOCUMENT_TYPES.join(', ')}.`,
+								{ itemIndex },
+							);
+						}
+
+						result = (await fulfillmentsService.getPackageShippingDocument({
+							packageId: trimmedPackageId,
+							shopCipher: trimmedShopCipher,
+							documentType: trimmedDocumentType
+								? (trimmedDocumentType as ShippingDocumentType)
+								: undefined,
+							accessToken,
+							proxy,
+						})) as Record<string, unknown>;
+					} else {
+						throw new NodeOperationError(
+							this.getNode(),
+							`Unsupported fulfillments operation: ${operation}`,
+							{ itemIndex },
+						);
+					}
 				} else {
 					throw new NodeOperationError(
 						this.getNode(),
@@ -1600,6 +1973,8 @@ export class TikTokShop implements INodeType {
 					error instanceof LogisticsServiceError ? error : undefined;
 				const ordersError =
 					error instanceof OrdersServiceError ? error : undefined;
+				const fulfillmentsError =
+					error instanceof FulfillmentsServiceError ? error : undefined;
 				const nodeError =
 					error instanceof NodeOperationError
 						? error
@@ -1621,7 +1996,8 @@ export class TikTokShop implements INodeType {
 						sellerError?.status ??
 						productError?.status ??
 						ordersError?.status ??
-						logisticsError?.status;
+						logisticsError?.status ??
+						fulfillmentsError?.status;
 
 					if (statusCode !== undefined) {
 						errorPayload.status = statusCode;
