@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-tiktokshop",
-	"version": "0.1.0",
+	"version": "1.0.0",
 	"description": "Production-ready TikTok Shop nodes for n8n automation.",
 	"license": "MIT",
 	"homepage": "https://github.com/TjnhPro/n8n-nodes-tiktokshop#readme",

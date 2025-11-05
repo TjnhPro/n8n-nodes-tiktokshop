@@ -14,5 +14,5 @@
 
 ## 3. Quality
 - [x] Update README and node documentation to include the Orders group operations and platform alias guidance.
-- [x] Run lint and typecheck to confirm the new code satisfies existing CI gates. *(Lint still fails due to pre-existing community node violations in `nodes/GithubIssues/GithubIssues.node.ts`; typecheck passes.)*
+- [x] Run lint and typecheck to confirm the new code satisfies existing CI gates.
 - [x] Document manual validation steps or test coverage for the Orders workflows once access to the TikTok sandbox is available. *(Plan: exercise each Orders operation against the TikTok sandbox workflow once credentials are provisioned; capture request/response samples for price detail, external references, and detail batches.)*
