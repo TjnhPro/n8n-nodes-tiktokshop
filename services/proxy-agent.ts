@@ -20,12 +20,30 @@ export function createProxyAgent(proxy?: string): ProxyAgent | undefined {
 	const normalized = proxy.trim();
 	const lowered = normalized.toLowerCase();
 
-	if (lowered.startsWith('http')) {
-		return new HttpsProxyAgent(normalized);
+	const split = lowered.split('://');
+	if(split.length < 2){
+		throw new ProxyConfigurationError(
+			`Unsupported proxy protocol for value "${proxy}"`,
+		);
 	}
 
-	if (lowered.startsWith('socks5')) {
-		return new SocksProxyAgent(normalized);
+	const type = split[0];
+	const [host, port, user, pass] = split[1].split(':');
+	let url = '';
+
+	if(user && pass){
+		url = `${type}://${user}:${pass}@${host}:${port}`;
+	}
+	else{
+		url = `${type}://${host}:${port}`;
+	}
+
+	if (type.startsWith('http')) {
+		return new HttpsProxyAgent(url);
+	}
+
+	if (type.startsWith('socks5')) {
+		return new SocksProxyAgent(url);
 	}
 
 	throw new ProxyConfigurationError(

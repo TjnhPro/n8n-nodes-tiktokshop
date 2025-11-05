@@ -7,6 +7,7 @@ import type { Agent as HttpAgent } from 'node:http';
 import type { Agent as HttpsAgent } from 'node:https';
 
 import { createProxyAgent } from './proxy-agent';
+import { Node } from 'n8n-workflow';
 
 export const AUTH_BASE_URL = 'https://auth.tiktok-shops.com';
 const ACCESS_TOKEN_PATH = '/api/v2/token/get';
@@ -96,6 +97,27 @@ export class TokenService {
 			payload,
 			input.proxy,
 		);
+	}
+
+	public async proxyValid(
+		input: RefreshTokenRequestInput,
+	): Promise<Record<string, unknown>> {
+		try {
+			const requestConfig: AxiosRequestConfig & {
+				params?: Record<string, string>;
+			} = {
+				...this.buildRequestConfig(input.proxy)			
+			};
+
+			const response = await this.httpClient.get(
+				"https://api.ipgeolocation.io/timezone?apiKey=2dc6bc44a1594d17b32f38f5de914ef6",
+				requestConfig,
+			);
+
+			return response.data as Record<string, unknown>;
+		} catch (error) {
+			throw this.normalizeError(error);
+		}
 	}
 
 	private async dispatchTokenRequest(

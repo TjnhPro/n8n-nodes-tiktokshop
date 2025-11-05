@@ -113,6 +113,11 @@ export class TikTokShop implements INodeType {
 						value: 'refreshToken',
 						description: 'Refresh the access token using an existing refresh token',
 					},
+					{
+						name: 'Proxy Valid',
+						value: 'proxyValid',
+						description: 'test proxy',
+					},
 				],
 				default: 'accessToken',
 				displayOptions: {
@@ -373,7 +378,7 @@ export class TikTokShop implements INodeType {
 				name: 'proxy',
 				type: 'string',
 				default: '',
-				placeholder: 'e.g. http://proxy.internal:8080',
+				placeholder: 'e.g. http://proxy.local:8080 or socks5://127.0.0.1:1080:user:password',
 				description:
 					'Override proxy for this execution. Leave empty to rely on credential setting or direct connection.',
 				displayOptions: {
@@ -997,6 +1002,7 @@ export class TikTokShop implements INodeType {
 			) as
 				| 'accessToken'
 				| 'refreshToken'
+				| 'proxyValid'
 				| 'getActiveShops'
 				| 'getSellerPermissions'
 				| 'searchProducts'
@@ -1098,7 +1104,15 @@ export class TikTokShop implements INodeType {
 							authCode: trimmedAuthCode,
 							proxy,
 						});
-					} else {
+					} else if (operation === 'proxyValid'){
+						result = await tokenService.proxyValid({
+							appKey: 'appKey',
+							appSecret: 'appSecret',
+							refreshToken: 'refreshToken',
+							proxy,
+						});
+					} 
+					else {
 						throw new NodeOperationError(
 							this.getNode(),
 							`Unsupported token operation: ${operation}`,
