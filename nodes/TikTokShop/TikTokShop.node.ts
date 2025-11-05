@@ -35,19 +35,25 @@ import {
 	OrdersServiceError,
 	type ExternalOrderReference,
 } from '../../services/orders-service';
+import {
+	FinancesService,
+	FinancesServiceError,
+	type SortOrder,
+	type WithdrawalType,
+} from '../../services/finances-service';
 
 export class TikTokShop implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'TikTok Shop',
 		name: 'tiktokShop',
 		icon: {
-			light: 'file:../../icons/tiktokshop.svg',
+			light: 'file:../../icons/tiktokshop.dark.svg',
 			dark: 'file:../../icons/tiktokshop.dark.svg',
 		},
 		version: 1,
 		group: ['input'],
 		description:
-			'Handle TikTok Shop token exchanges, seller insights, order management, product catalog queries, and logistics lookups',
+			'Handle TikTok Shop token exchanges, seller insights, order management, finance reconciliation, product catalog queries, and logistics lookups',
 		defaults: {
 			name: 'TikTok Shop',
 		},
@@ -75,6 +81,10 @@ export class TikTokShop implements INodeType {
 					{
 						name: 'Orders',
 						value: 'orders',
+					},
+					{
+						name: 'Finances',
+						value: 'finances',
 					},
 					{
 						name: 'Logistics',
@@ -218,11 +228,61 @@ export class TikTokShop implements INodeType {
 					},
 				},
 			},
-		{
-			displayName: 'Operation',
-			name: 'operation',
-			type: 'options',
-			noDataExpression: true,
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				options: [
+					{
+						name: 'Get Statements',
+						value: 'getStatements',
+						description:
+							'Retrieve settlement statements for a shop with pagination and sorting controls',
+					},
+					{
+						name: 'Get Payments',
+						value: 'getPayments',
+						description:
+							'Retrieve payment records for a shop with pagination and optional sorting',
+					},
+					{
+						name: 'Get Withdrawals',
+						value: 'getWithdrawals',
+						description:
+							'Retrieve withdrawal records for a shop with optional type filters and pagination',
+					},
+					{
+						name: 'Get Transactions by Order',
+						value: 'getStatementTransactionsByOrder',
+						description:
+							'Inspect statement transactions linked to a specific order',
+					},
+					{
+						name: 'Get Transactions by Statement',
+						value: 'getStatementTransactionsByStatement',
+						description:
+							'Inspect transactions contained within a specific settlement statement',
+					},
+					{
+						name: 'Get Unsettled Transactions',
+						value: 'getUnsettledTransactions',
+						description:
+							'Retrieve unsettled order transactions for reconciliation',
+					},
+				],
+				default: 'getStatements',
+				displayOptions: {
+					show: {
+						group: ['finances'],
+					},
+				},
+			},
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
 			options: [
 				{
 					name: 'List Warehouses',
@@ -289,7 +349,7 @@ export class TikTokShop implements INodeType {
 				required: true,
 				displayOptions: {
 					show: {
-						group: ['token', 'seller', 'product', 'orders', 'logistics', 'fulfillments'],
+						group: ['token', 'seller', 'product', 'orders', 'finances', 'logistics', 'fulfillments'],
 					},
 				},
 			},
@@ -304,7 +364,7 @@ export class TikTokShop implements INodeType {
 				required: true,
 				displayOptions: {
 					show: {
-						group: ['token', 'seller', 'product', 'orders', 'logistics', 'fulfillments'],
+						group: ['token', 'seller', 'product', 'orders', 'finances', 'logistics', 'fulfillments'],
 					},
 				},
 			},
@@ -318,7 +378,7 @@ export class TikTokShop implements INodeType {
 					'Override proxy for this execution. Leave empty to rely on credential setting or direct connection.',
 				displayOptions: {
 					show: {
-						group: ['token', 'seller', 'product', 'orders', 'logistics', 'fulfillments'],
+						group: ['token', 'seller', 'product', 'orders', 'finances', 'logistics', 'fulfillments'],
 					},
 				},
 			},
@@ -331,10 +391,10 @@ export class TikTokShop implements INodeType {
 				},
 				default: '',
 				description:
-					'Access token applied to Seller, Product, Orders, Logistics, and Fulfillments API requests.',
+					'Access token applied to Seller, Product, Orders, Finances, Logistics, and Fulfillments API requests.',
 				displayOptions: {
 					show: {
-						group: ['seller', 'product', 'orders', 'logistics', 'fulfillments'],
+						group: ['seller', 'product', 'orders', 'finances', 'logistics', 'fulfillments'],
 					},
 				},
 			},
@@ -391,10 +451,10 @@ export class TikTokShop implements INodeType {
 			type: 'string',
 			default: '',
 			description:
-				'Shop cipher identifier. Required for fulfillments, order search and external reference batches, product search/creation/deletion, and most logistics lookups; optional for detail lookups.',
+				'Shop cipher identifier. Required for finance operations, fulfillments, order search and external reference batches, product search/creation/deletion, and most logistics lookups; optional for detail lookups.',
 			displayOptions: {
 				show: {
-					group: ['product', 'orders', 'logistics', 'fulfillments'],
+					group: ['product', 'orders', 'finances', 'logistics', 'fulfillments'],
 					operation: [
 						'searchProducts',
 						'createProduct',
@@ -406,6 +466,12 @@ export class TikTokShop implements INodeType {
 						'getExternalOrderReferences',
 						'searchOrderByExternalReference',
 						'getOrderDetail',
+						'getStatements',
+						'getPayments',
+						'getWithdrawals',
+						'getStatementTransactionsByOrder',
+						'getStatementTransactionsByStatement',
+						'getUnsettledTransactions',
 						'listWarehouses',
 						'listWarehouseDeliveryOptions',
 						'listShippingProviders',
@@ -679,11 +745,15 @@ export class TikTokShop implements INodeType {
 			type: 'string',
 			default: '',
 			description:
-				'TikTok Shop order ID to inspect. Required for price detail and external reference retrieval.',
+				'TikTok Shop order ID to inspect. Required for price detail, external reference retrieval, and finance transaction lookups.',
 			displayOptions: {
 				show: {
-					group: ['orders'],
-					operation: ['getPriceDetail', 'getExternalOrderReferences'],
+					group: ['orders', 'finances'],
+					operation: [
+						'getPriceDetail',
+						'getExternalOrderReferences',
+						'getStatementTransactionsByOrder',
+					],
 				},
 			},
 		},
@@ -764,6 +834,145 @@ export class TikTokShop implements INodeType {
 				},
 			},
 		},
+		{
+			displayName: 'Finance Page Size',
+			name: 'financePageSize',
+			type: 'number',
+			default: 20,
+			typeOptions: {
+				minValue: 1,
+				maxValue: 100,
+			},
+			description:
+				'Number of finance records to return per page (1-100). Defaults to 20 when left empty.',
+			displayOptions: {
+				show: {
+					group: ['finances'],
+					operation: [
+						'getStatements',
+						'getPayments',
+						'getWithdrawals',
+						'getStatementTransactionsByStatement',
+						'getUnsettledTransactions',
+					],
+				},
+			},
+		},
+		{
+			displayName: 'Finance Page Token',
+			name: 'financePageToken',
+			type: 'string',
+			default: '',
+			description:
+				'Use the token from a previous finance response to continue paging results.',
+			displayOptions: {
+				show: {
+					group: ['finances'],
+					operation: [
+						'getStatements',
+						'getPayments',
+						'getWithdrawals',
+						'getStatementTransactionsByStatement',
+						'getUnsettledTransactions',
+					],
+				},
+			},
+		},
+		{
+			displayName: 'Finance Sort Field',
+			name: 'financeSortField',
+			type: 'string',
+			default: 'statement_time',
+			description:
+				'Custom field used to sort finance results. Statements default to statement_time; transaction lists default to order_create_time.',
+			displayOptions: {
+				show: {
+					group: ['finances'],
+					operation: [
+						'getStatements',
+						'getPayments',
+						'getStatementTransactionsByStatement',
+						'getUnsettledTransactions',
+					],
+				},
+			},
+		},
+		{
+			displayName: 'Finance Sort Order',
+			name: 'financeSortOrder',
+			type: 'options',
+			options: [
+				{ name: 'Ascending', value: 'ASC' },
+				{ name: 'Descending', value: 'DESC' },
+			],
+			default: '',
+			description:
+				'Sort order for finance results. Defaults to TikTok API ordering when left empty.',
+			displayOptions: {
+				show: {
+					group: ['finances'],
+					operation: [
+						'getStatements',
+						'getPayments',
+						'getStatementTransactionsByStatement',
+						'getUnsettledTransactions',
+					],
+				},
+			},
+		},
+		{
+			displayName: 'Withdrawal Types',
+			name: 'withdrawalTypes',
+			type: 'multiOptions',
+			options: [
+				{
+					name: 'Withdraw',
+					value: 'WITHDRAW',
+					description:
+						'Seller withdrawn settlement amounts to their bank account.',
+				},
+				{
+					name: 'Settle',
+					value: 'SETTLE',
+					description: 'Platform settled amounts to the seller.',
+				},
+				{
+					name: 'Transfer',
+					value: 'TRANSFER',
+					description:
+						'Platform subsidies or deductions triggered by platform policies.',
+				},
+				{
+					name: 'Reverse',
+					value: 'REVERSE',
+					description:
+						'Withdrawal reversal due to issues such as invalid bank details.',
+				},
+			],
+			default: [],
+			description:
+				'Filter withdrawal records by type. Leave empty to include all withdrawal events.',
+			displayOptions: {
+				show: {
+					group: ['finances'],
+					operation: ['getWithdrawals'],
+				},
+			},
+		},
+		{
+			displayName: 'Statement ID',
+			name: 'statementId',
+			type: 'string',
+			default: '',
+			required: true,
+			description: 'Settlement statement ID to inspect.',
+			displayOptions: {
+				show: {
+					group: ['finances'],
+					operation: ['getStatementTransactionsByStatement'],
+				},
+			},
+		},
 		],
 	};
 
@@ -779,6 +988,7 @@ export class TikTokShop implements INodeType {
 				| 'seller'
 				| 'product'
 				| 'orders'
+				| 'finances'
 				| 'logistics'
 				| 'fulfillments';
 			const operation = this.getNodeParameter(
@@ -800,6 +1010,12 @@ export class TikTokShop implements INodeType {
 				| 'getExternalOrderReferences'
 				| 'searchOrderByExternalReference'
 				| 'getOrderDetail'
+				| 'getStatements'
+				| 'getPayments'
+				| 'getWithdrawals'
+				| 'getStatementTransactionsByOrder'
+				| 'getStatementTransactionsByStatement'
+				| 'getUnsettledTransactions'
 				| 'listWarehouses'
 				| 'listGlobalWarehouses'
 				| 'listWarehouseDeliveryOptions'
@@ -1576,6 +1792,360 @@ export class TikTokShop implements INodeType {
 							{ itemIndex },
 						);
 					}
+				} else if (group === 'finances') {
+					const accessTokenValue = this.getNodeParameter(
+						'accessToken',
+						itemIndex,
+						'',
+					) as string;
+					const accessToken = accessTokenValue?.trim() || undefined;
+
+					const financesService = new FinancesService({
+						appKey: trimmedAppKey,
+						appSecret: trimmedAppSecret,
+						accessToken,
+						proxy,
+					});
+
+					const resolveFinancePageSize = (
+						value: number | undefined,
+						context: string,
+					): number | undefined => {
+						if (value === undefined) {
+							return undefined;
+						}
+
+						if (!Number.isFinite(value)) {
+							throw new NodeOperationError(
+								this.getNode(),
+								`${context} must be a finite number between 1 and 100.`,
+								{ itemIndex },
+							);
+						}
+
+						const numeric = Number(value);
+
+						if (numeric < 1 || numeric > 100) {
+							throw new NodeOperationError(
+								this.getNode(),
+								`${context} must be between 1 and 100.`,
+								{ itemIndex },
+							);
+						}
+
+						return numeric;
+					};
+
+					const resolveFinanceSortOrder = (
+						value: string | undefined,
+					): SortOrder | undefined => {
+						const trimmed = value?.toString().trim();
+						if (!trimmed) {
+							return undefined;
+						}
+
+						const upper = trimmed.toUpperCase();
+						if (upper !== 'ASC' && upper !== 'DESC') {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Sort order must be either ASC or DESC when provided.',
+								{ itemIndex },
+							);
+						}
+
+						return upper as SortOrder;
+					};
+
+					const resolveShopCipher = (): string => {
+						const shopCipherValue = this.getNodeParameter(
+							'shopCipher',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedShopCipher = shopCipherValue.trim();
+
+						if (!trimmedShopCipher) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Shop cipher is required for the selected finance operation.',
+								{ itemIndex },
+							);
+						}
+
+						return trimmedShopCipher;
+					};
+
+					if (operation === 'getStatements') {
+						const shopCipher = resolveShopCipher();
+
+						const pageSizeValue = this.getNodeParameter(
+							'financePageSize',
+							itemIndex,
+							undefined,
+						) as number | undefined;
+						const pageTokenValue = this.getNodeParameter(
+							'financePageToken',
+							itemIndex,
+							'',
+						) as string;
+						const sortFieldValue = this.getNodeParameter(
+							'financeSortField',
+							itemIndex,
+							'',
+						) as string;
+						const sortOrderValue = this.getNodeParameter(
+							'financeSortOrder',
+							itemIndex,
+							'',
+						) as string;
+
+						const pageSize = resolveFinancePageSize(
+							pageSizeValue,
+							'Finance page size',
+						);
+						const pageToken = pageTokenValue?.trim() || undefined;
+						const sortField = sortFieldValue?.trim() || undefined;
+						const sortOrder = resolveFinanceSortOrder(sortOrderValue);
+
+						result = await financesService.getStatements({
+							shopCipher,
+							pageSize,
+							pageToken,
+							sortField,
+							sortOrder,
+							accessToken,
+							proxy,
+						});
+					} else if (operation === 'getPayments') {
+						const shopCipher = resolveShopCipher();
+
+						const pageSizeValue = this.getNodeParameter(
+							'financePageSize',
+							itemIndex,
+							undefined,
+						) as number | undefined;
+						const pageTokenValue = this.getNodeParameter(
+							'financePageToken',
+							itemIndex,
+							'',
+						) as string;
+						const sortFieldValue = this.getNodeParameter(
+							'financeSortField',
+							itemIndex,
+							'',
+						) as string;
+						const sortOrderValue = this.getNodeParameter(
+							'financeSortOrder',
+							itemIndex,
+							'',
+						) as string;
+
+						const pageSize = resolveFinancePageSize(
+							pageSizeValue,
+							'Finance page size',
+						);
+						const pageToken = pageTokenValue?.trim() || undefined;
+						const sortField = sortFieldValue?.trim() || undefined;
+						const sortOrder = resolveFinanceSortOrder(sortOrderValue);
+
+						result = await financesService.getPayments({
+							shopCipher,
+							pageSize,
+							pageToken,
+							sortField,
+							sortOrder,
+							accessToken,
+							proxy,
+						});
+					} else if (operation === 'getWithdrawals') {
+						const shopCipher = resolveShopCipher();
+
+						const pageSizeValue = this.getNodeParameter(
+							'financePageSize',
+							itemIndex,
+							undefined,
+						) as number | undefined;
+						const pageTokenValue = this.getNodeParameter(
+							'financePageToken',
+							itemIndex,
+							'',
+						) as string;
+						const rawTypes = this.getNodeParameter(
+							'withdrawalTypes',
+							itemIndex,
+							[],
+						) as string[];
+
+						const pageSize = resolveFinancePageSize(
+							pageSizeValue,
+							'Finance page size',
+						);
+						const pageToken = pageTokenValue?.trim() || undefined;
+
+						const allowedWithdrawalTypes: WithdrawalType[] = [
+							'WITHDRAW',
+							'SETTLE',
+							'TRANSFER',
+							'REVERSE',
+						];
+
+						const withdrawalTypes = Array.isArray(rawTypes)
+							? rawTypes
+									.map((value) => value?.toString().trim().toUpperCase())
+									.filter((value): value is WithdrawalType =>
+										allowedWithdrawalTypes.includes(value as WithdrawalType),
+									)
+							: [];
+
+						if (
+							Array.isArray(rawTypes) &&
+							withdrawalTypes.length !== rawTypes.length
+						) {
+							throw new NodeOperationError(
+								this.getNode(),
+								`Withdrawal types must be within ${allowedWithdrawalTypes.join(', ')}.`,
+								{ itemIndex },
+							);
+						}
+
+						result = await financesService.getWithdrawals({
+							shopCipher,
+							pageSize,
+							pageToken,
+							types: withdrawalTypes.length
+								? (withdrawalTypes as WithdrawalType[])
+								: undefined,
+							accessToken,
+							proxy,
+						});
+					} else if (operation === 'getStatementTransactionsByOrder') {
+						const shopCipher = resolveShopCipher();
+						const orderIdValue = this.getNodeParameter(
+							'orderId',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedOrderId = orderIdValue.trim();
+
+						if (!trimmedOrderId) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Order ID is required for the get transactions by order operation.',
+								{ itemIndex },
+							);
+						}
+
+						result = await financesService.getStatementTransactionsByOrder({
+							orderId: trimmedOrderId,
+							shopCipher,
+							accessToken,
+							proxy,
+						});
+					} else if (operation === 'getStatementTransactionsByStatement') {
+						const shopCipher = resolveShopCipher();
+
+						const statementIdValue = this.getNodeParameter(
+							'statementId',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedStatementId = statementIdValue.trim();
+
+						if (!trimmedStatementId) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Statement ID is required for the get transactions by statement operation.',
+								{ itemIndex },
+							);
+						}
+
+						const pageSizeValue = this.getNodeParameter(
+							'financePageSize',
+							itemIndex,
+							undefined,
+						) as number | undefined;
+						const pageTokenValue = this.getNodeParameter(
+							'financePageToken',
+							itemIndex,
+							'',
+						) as string;
+						const sortFieldValue = this.getNodeParameter(
+							'financeSortField',
+							itemIndex,
+							'',
+						) as string;
+						const sortOrderValue = this.getNodeParameter(
+							'financeSortOrder',
+							itemIndex,
+							'',
+						) as string;
+
+						const pageSize = resolveFinancePageSize(
+							pageSizeValue,
+							'Finance page size',
+						);
+						const pageToken = pageTokenValue?.trim() || undefined;
+						const sortField = sortFieldValue?.trim() || undefined;
+						const sortOrder = resolveFinanceSortOrder(sortOrderValue);
+
+						result = await financesService.getStatementTransactionsByStatement({
+							statementId: trimmedStatementId,
+							shopCipher,
+							pageSize,
+							pageToken,
+							sortField,
+							sortOrder,
+							accessToken,
+							proxy,
+						});
+					} else if (operation === 'getUnsettledTransactions') {
+						const shopCipher = resolveShopCipher();
+
+						const pageSizeValue = this.getNodeParameter(
+							'financePageSize',
+							itemIndex,
+							undefined,
+						) as number | undefined;
+						const pageTokenValue = this.getNodeParameter(
+							'financePageToken',
+							itemIndex,
+							'',
+						) as string;
+						const sortFieldValue = this.getNodeParameter(
+							'financeSortField',
+							itemIndex,
+							'',
+						) as string;
+						const sortOrderValue = this.getNodeParameter(
+							'financeSortOrder',
+							itemIndex,
+							'',
+						) as string;
+
+						const pageSize = resolveFinancePageSize(
+							pageSizeValue,
+							'Finance page size',
+						);
+						const pageToken = pageTokenValue?.trim() || undefined;
+						const sortField = sortFieldValue?.trim() || undefined;
+						const sortOrder = resolveFinanceSortOrder(sortOrderValue);
+
+						result = await financesService.getUnsettledTransactions({
+							shopCipher,
+							pageSize,
+							pageToken,
+							sortField,
+							sortOrder,
+							accessToken,
+							proxy,
+						});
+					} else {
+						throw new NodeOperationError(
+							this.getNode(),
+							`Unsupported finances operation: ${operation}`,
+							{ itemIndex },
+						);
+					}
 				} else if (group === 'logistics') {
 					const accessTokenValue = this.getNodeParameter(
 						'accessToken',
@@ -1973,6 +2543,8 @@ export class TikTokShop implements INodeType {
 					error instanceof LogisticsServiceError ? error : undefined;
 				const ordersError =
 					error instanceof OrdersServiceError ? error : undefined;
+				const financesError =
+					error instanceof FinancesServiceError ? error : undefined;
 				const fulfillmentsError =
 					error instanceof FulfillmentsServiceError ? error : undefined;
 				const nodeError =
@@ -1996,6 +2568,7 @@ export class TikTokShop implements INodeType {
 						sellerError?.status ??
 						productError?.status ??
 						ordersError?.status ??
+						financesError?.status ??
 						logisticsError?.status ??
 						fulfillmentsError?.status;
 
@@ -2017,4 +2590,3 @@ export class TikTokShop implements INodeType {
 		return [returnData];
 	}
 }
-
