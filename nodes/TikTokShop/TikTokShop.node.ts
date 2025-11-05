@@ -1,3 +1,4 @@
+import axios, { type AxiosRequestConfig } from 'axios';
 import {
 	NodeConnectionTypes,
 	NodeOperationError,
@@ -31,6 +32,10 @@ import {
 	type ShippingDocumentType,
 } from '../../services/fulfillments-service';
 import {
+	PdfService,
+	PdfServiceError,
+} from '../../services/pdf-service';
+import {
 	OrdersService,
 	OrdersServiceError,
 	type ExternalOrderReference,
@@ -41,6 +46,7 @@ import {
 	type SortOrder,
 	type WithdrawalType,
 } from '../../services/finances-service';
+import { createProxyAgent } from '../../services/proxy-agent';
 
 export class TikTokShop implements INodeType {
 	description: INodeTypeDescription = {
@@ -338,6 +344,12 @@ export class TikTokShop implements INodeType {
 					value: 'getPackageShippingDocument',
 					description: 'Download labels or documents generated for a package',
 				},
+				{
+					name: 'Resize PDF',
+					value: 'resizePdf',
+					description:
+						'Download a PDF from a remote URL and resize it for downstream fulfillment workflows',
+				},
 			],
 			default: 'createPackages',
 			displayOptions: {
@@ -587,6 +599,20 @@ export class TikTokShop implements INodeType {
 				show: {
 					group: ['fulfillments'],
 					operation: ['getPackageShippingDocument'],
+				},
+			},
+		},
+		{
+			displayName: 'Source URL',
+			name: 'sourceUrl',
+			type: 'string',
+			default: '',
+			required: true,
+			description: 'HTTPS URL of the PDF to download and resize to a 4x6 inch page at 300 DPI.',
+			displayOptions: {
+				show: {
+					group: ['fulfillments'],
+					operation: ['resizePdf'],
 				},
 			},
 		},
@@ -1028,7 +1054,8 @@ export class TikTokShop implements INodeType {
 				| 'listShippingProviders'
 				| 'createPackages'
 				| 'shipPackage'
-				| 'getPackageShippingDocument';
+				| 'getPackageShippingDocument'
+				| 'resizePdf';
 			const appKey = this.getNodeParameter('appKey', itemIndex) as string;
 			const appSecret = this.getNodeParameter('appSecret', itemIndex) as string;
 
@@ -1060,6 +1087,14 @@ export class TikTokShop implements INodeType {
 				}
 
 				let result: Record<string, unknown>;
+				let binaryAttachment:
+					| {
+							propertyName: string;
+							buffer: Buffer;
+							fileName: string;
+							mimeType: string;
+					  }
+					| undefined;
 
 				if (group === 'token') {
 					if (operation === 'accessToken') {
@@ -2527,6 +2562,70 @@ export class TikTokShop implements INodeType {
 							accessToken,
 							proxy,
 						})) as Record<string, unknown>;
+					} else if (operation === 'resizePdf') {
+						const sourceUrlValue = this.getNodeParameter(
+							'sourceUrl',
+							itemIndex,
+							'',
+						) as string;
+						const trimmedSourceUrl = sourceUrlValue.trim();
+
+						if (!trimmedSourceUrl) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Source URL is required for the resize PDF operation.',
+								{ itemIndex },
+							);
+						}
+
+						const TARGET_WIDTH_MM = 101.6;
+						const TARGET_HEIGHT_MM = 152.4;
+						const DEFAULT_DPI = 300;
+						const OUTPUT_BINARY_PROPERTY = 'data';
+						const OUTPUT_FILE_NAME = 'resized.pdf';
+
+						const axiosConfig: AxiosRequestConfig = {
+							timeout: 15000,
+							headers: { Accept: 'application/pdf' },
+						};
+
+						const proxyAgent = createProxyAgent(proxy);
+						if (proxyAgent) {
+							axiosConfig.httpAgent = proxyAgent;
+							axiosConfig.httpsAgent = proxyAgent;
+						}
+
+						const pdfService = new PdfService({
+							httpClient: axios.create(axiosConfig),
+						});
+
+						const pdfResult = await pdfService.resizeFromUrl({
+							sourceUrl: trimmedSourceUrl,
+							targetPageSize: {
+								widthMm: TARGET_WIDTH_MM,
+								heightMm: TARGET_HEIGHT_MM,
+							},
+							dpi: DEFAULT_DPI,
+						});
+
+						result = {
+							sourceUrl: trimmedSourceUrl,
+							targetPageSize: {
+								widthMm: TARGET_WIDTH_MM,
+								heightMm: TARGET_HEIGHT_MM,
+							},
+							dpi: DEFAULT_DPI,
+							metadata: pdfResult.metadata,
+							binaryPropertyName: OUTPUT_BINARY_PROPERTY,
+							outputFileName: OUTPUT_FILE_NAME,
+						};
+
+						binaryAttachment = {
+							propertyName: OUTPUT_BINARY_PROPERTY,
+							buffer: pdfResult.buffer,
+							fileName: OUTPUT_FILE_NAME,
+							mimeType: 'application/pdf',
+						};
 					} else {
 						throw new NodeOperationError(
 							this.getNode(),
@@ -2544,10 +2643,26 @@ export class TikTokShop implements INodeType {
 
 				const output = result as IDataObject;
 
-				returnData.push({
-					json: output,
-					pairedItem: { item: itemIndex },
-				});
+				if (binaryAttachment) {
+					const preparedBinary = await this.helpers.prepareBinaryData(
+						binaryAttachment.buffer,
+						binaryAttachment.fileName,
+						binaryAttachment.mimeType,
+					);
+
+					returnData.push({
+						json: output,
+						binary: {
+							[binaryAttachment.propertyName]: preparedBinary,
+						},
+						pairedItem: { item: itemIndex },
+					});
+				} else {
+					returnData.push({
+						json: output,
+						pairedItem: { item: itemIndex },
+					});
+				}
 			} catch (error) {
 				const tokenError = error instanceof TokenServiceError ? error : undefined;
 				const sellerError = error instanceof SellerServiceError ? error : undefined;
@@ -2561,6 +2676,8 @@ export class TikTokShop implements INodeType {
 					error instanceof FinancesServiceError ? error : undefined;
 				const fulfillmentsError =
 					error instanceof FulfillmentsServiceError ? error : undefined;
+				const pdfProcessingError =
+					error instanceof PdfServiceError ? error : undefined;
 				const nodeError =
 					error instanceof NodeOperationError
 						? error
@@ -2584,10 +2701,15 @@ export class TikTokShop implements INodeType {
 						ordersError?.status ??
 						financesError?.status ??
 						logisticsError?.status ??
-						fulfillmentsError?.status;
+						fulfillmentsError?.status ??
+						pdfProcessingError?.status;
 
 					if (statusCode !== undefined) {
 						errorPayload.status = statusCode;
+					}
+
+					if (pdfProcessingError?.stage) {
+						errorPayload.stage = pdfProcessingError.stage;
 					}
 
 					returnData.push({

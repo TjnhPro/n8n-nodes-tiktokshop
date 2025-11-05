@@ -7,7 +7,7 @@ import type { Agent as HttpAgent } from 'node:http';
 import type { Agent as HttpsAgent } from 'node:https';
 
 import { createProxyAgent } from './proxy-agent';
-import { Node } from 'n8n-workflow';
+
 
 export const AUTH_BASE_URL = 'https://auth.tiktok-shops.com';
 const ACCESS_TOKEN_PATH = '/api/v2/token/get';

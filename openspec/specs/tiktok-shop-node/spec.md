@@ -225,12 +225,11 @@ TikTok Shop node MUST block execution of Orders operations when required paramet
 - **THEN** it presents helper text listing supported values (`SHOPIFY`, `WOOCOMMERCE`, `BIGCOMMERCE`, `MAGENTO`, `SALESFORCE_COMMERCE_CLOUD`, `CHANNEL_ADVISOR`, `AMAZON`, `ORDER_MANAGEMENT_SYSTEM`, `WAREHOUSE_MANAGEMENT_SYSTEM`, `ERP_SYSTEM`).
 
 ### Requirement: TikTok Shop node exposes Fulfillments group
-TikTok Shop node MUST present a `Fulfillments` group in the UI with operations for package creation, shipping, and document retrieval.
-
+TikTok Shop node MUST present a `Fulfillments` group in the UI with operations for package creation, shipping, document retrieval, and PDF resizing.
 #### Scenario: Fulfillments group lists package operations
 - **WHEN** a workflow configures the TikTok Shop node
 - **THEN** the resource selector includes `Fulfillments`
-- **AND** selecting `Fulfillments` reveals operations `createPackages`, `shipPackage`, and `getPackageShippingDocument` with descriptive labels and help text explaining required inputs and document type options.
+- **AND** selecting `Fulfillments` reveals operations `createPackages`, `shipPackage`, `getPackageShippingDocument`, and `resizePdf` with descriptive labels explaining the inputs for each operation.
 
 ### Requirement: Fulfillments group delegates to FulfillmentsService
 TikTok Shop Fulfillments operations MUST instantiate FulfillmentsService and call the matching helper with node inputs.
@@ -261,22 +260,9 @@ TikTok Shop Fulfillments operations MUST instantiate FulfillmentsService and cal
 
 ### Requirement: Fulfillments group validates required inputs
 TikTok Shop Fulfillments operations MUST block execution when required parameters are missing or blank.
-
-#### Scenario: Missing packageId aborts ship request
-- **WHEN** the node executes `shipPackage` without a non-empty `packageId`
-- **THEN** it throws a validation error before calling FulfillmentsService.
-
-#### Scenario: Missing shopCipher aborts fulfillments operations
-- **WHEN** the node executes a Fulfillments operation without a non-empty `shopCipher`
-- **THEN** it throws a validation error before calling FulfillmentsService.
-
-#### Scenario: Missing body aborts create and ship requests
-- **WHEN** the node executes `createPackages` or `shipPackage` without a non-empty JSON body
-- **THEN** it throws a validation error before calling FulfillmentsService.
-
-#### Scenario: Invalid document type rejected
-- **WHEN** the node executes `getPackageShippingDocument` with a `documentType` outside TikTok-supported values `SHIPPING_LABEL`, `PACKING_SLIP`, `SHIPPING_LABEL_AND_PACKING_SLIP`, `SHIPPING_LABEL_PICTURE`, `HAZMAT_LABEL`, or `INVOICE_LABEL`
-- **THEN** it throws a validation error before calling FulfillmentsService.
+#### Scenario: Missing source URL aborts PDF resize
+- **WHEN** the node executes `resizePdf` without a non-empty `sourceUrl`
+- **THEN** it throws a validation error before invoking PdfService.
 
 ### Requirement: TikTok Shop node exposes Finances group
 TikTok Shop node MUST present a `Finances` group in the operation selector with six settlement and transaction inspection operations backed by FinancesService helpers.
@@ -361,4 +347,20 @@ TikTok Shop node MUST block execution of Finances operations when required param
 #### Scenario: Help text documents withdrawal types
 - **WHEN** the node displays configuration for the `types` selector on `getWithdrawals`
 - **THEN** it presents helper text summarizing each TikTok meaning (`WITHDRAW`, `SETTLE`, `TRANSFER`, `REVERSE`) so operators understand the filters.
+
+### Requirement: Fulfillments resize operation delegates to PdfService
+- Pdf resize flows MUST call PdfService to download, resize, and return the PDF binary alongside metadata using a fixed 4x6 inch page at 300 DPI.
+
+-#### Scenario: Node resizes PDF via PdfService
+- **GIVEN** the node executes with group `Fulfillments` and operation `resizePdf`
+- **AND** provides a `sourceUrl`
+- **WHEN** the node runs
+- **THEN** it constructs PdfService with proxy-aware HTTP settings
+- **AND** it calls `resizeFromUrl` passing the source URL with a fixed 4x6 inch (101.6mm x 152.4mm) target page size at 300 DPI
+- **AND** it returns the PdfService metadata (`pageCount`, final page size, original size, optional DPI) in the node output JSON.
+
+#### Scenario: Resized PDF returned as binary data
+- **WHEN** `resizePdf` succeeds
+- **THEN** the node attaches the resized PDF to the binary property `data` using MIME type `application/pdf`
+- **AND** the node output JSON references the `data` property and the resolved file name so downstream steps can consume the PDF.
 

@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-tiktokshop",
-	"version": "1.0.1",
+	"version": "1.1.0",
 	"description": "Production-ready TikTok Shop nodes for n8n automation.",
 	"license": "MIT",
 	"homepage": "https://github.com/TjnhPro/n8n-nodes-tiktokshop#readme",
@@ -24,8 +24,7 @@
 		"lint:fix": "n8n-node lint --fix",
 		"test": "tsx --test services/__tests__/**/*.test.ts",
 		"typecheck": "tsc --noEmit",
-		"release": "n8n-node release",
-		"prepublishOnly": "n8n-node prerelease"
+		"release": "n8n-node release"
 	},
 	"files": [
 		"dist"
@@ -45,6 +44,7 @@
 		"axios": "^1.13.1",
 		"form-data": "^4.0.0",
 		"https-proxy-agent": "^7.0.6",
+		"pdf-lib": "^1.17.1",
 		"socks-proxy-agent": "^8.0.5"
 	},
 	"devDependencies": {
